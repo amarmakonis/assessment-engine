@@ -42,7 +42,8 @@ export function EvaluationPage() {
       .getScript(scriptId)
       .then(({ data: d }) => {
         setData(d);
-        if (d.evaluations.length === 1) setExpandedQ(d.evaluations[0].questionId);
+        const first = d.evaluations[0];
+        if (first) setExpandedQ(first.questionId);
       })
       .finally(() => setLoading(false));
   }

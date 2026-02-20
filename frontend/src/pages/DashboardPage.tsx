@@ -51,7 +51,7 @@ export function DashboardPage() {
   }, [fetchData]);
 
   // Update "time ago" every minute so timestamps don't look stuck
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 60_000);
     return () => clearInterval(id);

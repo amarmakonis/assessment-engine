@@ -5,6 +5,7 @@ export type UploadStatus =
   | "SEGMENTED"
   | "EVALUATING"
   | "EVALUATED"
+  | "COMPLETE"
   | "FAILED"
   | "FLAGGED";
 

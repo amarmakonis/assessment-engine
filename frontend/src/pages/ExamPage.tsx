@@ -87,20 +87,25 @@ export function ExamPage() {
 
   function addRubric(qIdx: number) {
     const updated = [...questions];
-    updated[qIdx].rubric.push({ description: "", maxMarks: 5 });
+    const q = updated[qIdx];
+    if (!q) return;
+    q.rubric.push({ description: "", maxMarks: 5 });
     setQuestions(updated);
   }
 
   function removeRubric(qIdx: number, rIdx: number) {
     const updated = [...questions];
-    if (updated[qIdx].rubric.length <= 1) return;
-    updated[qIdx].rubric = updated[qIdx].rubric.filter((_, i) => i !== rIdx);
+    const q = updated[qIdx];
+    if (!q || q.rubric.length <= 1) return;
+    q.rubric = q.rubric.filter((_, i) => i !== rIdx);
     setQuestions(updated);
   }
 
   function updateRubric(qIdx: number, rIdx: number, field: keyof RubricInput, value: any) {
     const updated = [...questions];
-    (updated[qIdx].rubric[rIdx] as any)[field] = value;
+    const q = updated[qIdx];
+    if (!q) return;
+    (q.rubric[rIdx] as any)[field] = value;
     setQuestions(updated);
   }
 
@@ -136,7 +141,8 @@ export function ExamPage() {
       return;
     }
     for (let i = 0; i < questions.length; i++) {
-      if (!questions[i].questionText.trim()) {
+      const q = questions[i];
+      if (!q?.questionText.trim()) {
         toast.error(`Question ${i + 1} text is empty`);
         return;
       }
