@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aae-celery-ocr
+  namespace: aae
+  labels:
+    app: aae-celery-ocr
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aae-celery-ocr
+  template:
+    metadata:
+      labels:
+        app: aae-celery-ocr
+    spec:
+      containers:
+        - name: worker
+          image: aae-backend:latest
+          command:
+            - celery
+            - -A
+            - celery_app.celery
+            - worker
+            - --queues=ocr,default
+            - --concurrency=4
+            - --loglevel=info
+          envFrom:
+            - secretRef:
+                name: aae-secrets
+            - configMapRef:
+                name: aae-config
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aae-celery-evaluation
+  namespace: aae
+  labels:
+    app: aae-celery-evaluation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aae-celery-evaluation
+  template:
+    metadata:
+      labels:
+        app: aae-celery-evaluation
+    spec:
+      containers:
+        - name: worker
+          image: aae-backend:latest
+          command:
+            - celery
+            - -A
+            - celery_app.celery
+            - worker
+            - --queues=evaluation
+            - --concurrency=2
+            - --loglevel=info
+          envFrom:
+            - secretRef:
+                name: aae-secrets
+            - configMapRef:
+                name: aae-config
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi

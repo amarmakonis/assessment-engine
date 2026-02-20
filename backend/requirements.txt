@@ -1,0 +1,53 @@
+# Core
+Flask==3.1.0
+flask-cors==5.0.1
+flask-smorest==0.45.0
+flask-jwt-extended==4.7.1
+gunicorn==23.0.0
+
+# Async MongoDB
+motor==3.7.0
+pymongo==4.10.0
+
+# Redis
+redis==5.2.1
+
+# Task Queue
+celery[redis]==5.4.0
+
+# Validation & Settings
+pydantic==2.10.0
+pydantic-settings==2.7.0
+pydantic[email]
+
+# Object Storage
+boto3==1.36.0
+python-magic==0.4.27
+
+# PDF & DOCX processing
+Pillow==11.1.0
+pdf2image==1.17.0
+python-docx==1.1.2
+
+# LLM
+openai==1.60.0
+tenacity==9.0.0
+
+# Auth
+bcrypt==4.2.1
+PyJWT==2.10.1
+
+# Observability
+prometheus-client==0.21.1
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-instrumentation-flask==0.50b0
+opentelemetry-instrumentation-celery==0.50b0
+json-log-formatter==1.0
+
+# Dev / Testing
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+mongomock==4.2.0.post1
+fakeredis==2.26.2

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aae
+  labels:
+    app.kubernetes.io/name: agentic-assessment-engine
+    app.kubernetes.io/managed-by: kubectl

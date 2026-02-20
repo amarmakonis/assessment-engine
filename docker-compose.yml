@@ -1,0 +1,127 @@
+version: "3.9"
+
+x-backend-env: &backend-env
+  SECRET_KEY: ${SECRET_KEY:-change-me-in-production-this-must-be-at-least-32-chars}
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  MONGO_URI: mongodb://mongo:27017
+  MONGO_DB_NAME: aae_db
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+  STORAGE_PROVIDER: local
+  LOCAL_STORAGE_PATH: /data/uploads
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+  OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.1}
+  OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-4096}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  # ── Infrastructure ─────────────────────────────────────
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      target: api
+    ports:
+      - "5000:5000"
+    environment:
+      <<: *backend-env
+    volumes:
+      - upload_data:/data/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery Workers ─────────────────────────────────────
+  celery-ocr:
+    build:
+      context: ./backend
+      target: celery-ocr
+    environment:
+      <<: *backend-env
+    volumes:
+      - upload_data:/data/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-evaluation:
+    build:
+      context: ./backend
+      target: celery-evaluation
+    environment:
+      <<: *backend-env
+    volumes:
+      - upload_data:/data/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Frontend ───────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      target: production
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  redis_data:
+  minio_data:
+  upload_data:
