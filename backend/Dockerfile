@@ -1,9 +1,10 @@
 # Production Dockerfile for Assessment Engine backend
 FROM python:3.12-slim
 
-# pdf2image + poppler for PDF processing
+# pdf2image + poppler for PDF; libmagic for python-magic (file type detection)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
