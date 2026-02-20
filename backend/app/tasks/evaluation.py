@@ -195,6 +195,15 @@ def evaluate_question(
         total_prompt_tokens += rubric_meta["prompt_tokens"]
         total_completion_tokens += rubric_meta["completion_tokens"]
 
+        # Normalize grounded rubric so total_marks matches the question's maxMarks.
+        # LLM can produce criteria that sum to e.g. 10.5 instead of 10 due to rounding.
+        question_max_marks = float(question_def.get("maxMarks", 0))
+        if question_max_marks > 0 and abs(grounded_rubric.total_marks - question_max_marks) > 0.01:
+            scale = question_max_marks / grounded_rubric.total_marks
+            for c in grounded_rubric.criteria:
+                c.max_marks = round(c.max_marks * scale, 2)
+            grounded_rubric.total_marks = question_max_marks
+
         # ── Agent 2: Scoring (per criterion) ───────────────
         scoring_agent = ScoringAgent()
         criterion_scores, scoring_metas = scoring_agent.score_all_criteria(
