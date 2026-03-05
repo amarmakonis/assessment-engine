@@ -181,9 +181,10 @@ export function ScriptsPage() {
                     {s.uploadStatus === "EVALUATING" && s.scriptId && (
                       <button
                         onClick={async () => {
-                          if (!confirm("Stop this evaluation?")) return;
+                          const scriptId = s.scriptId;
+                          if (!scriptId || !confirm("Stop this evaluation?")) return;
                           try {
-                            await evaluationAPI.stopEvaluation(s.scriptId);
+                            await evaluationAPI.stopEvaluation(scriptId);
                             toast.success("Evaluation stopped");
                             loadData(true);
                           } catch {
