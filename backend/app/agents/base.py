@@ -40,10 +40,19 @@ class BaseAgent(ABC, Generic[T]):
         """Build the user prompt from the given context."""
         ...
 
-    def execute(self, *, trace_id: str = "", **kwargs) -> tuple[T, dict]:
+    def execute(
+        self,
+        *,
+        trace_id: str = "",
+        max_tokens: int | None = None,
+        model: str | None = None,
+        **kwargs,
+    ) -> tuple[T, dict]:
         """
         Run the agent: build prompts → call LLM → parse → return structured result.
         Returns (parsed_result, metadata_dict).
+        max_tokens: optional cap on completion length (faster when lower).
+        model: optional override (e.g. gpt-4o-mini for segmentation).
         """
         start = time.perf_counter_ns()
         system_prompt = self.get_system_prompt()
@@ -62,6 +71,8 @@ class BaseAgent(ABC, Generic[T]):
             response_model=self.response_model,
             agent_name=self.agent_name,
             temperature=0.0,  # Deterministic scoring: same answer → same score
+            max_tokens=max_tokens,
+            model=model,
         )
 
         elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)

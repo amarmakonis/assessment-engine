@@ -27,6 +27,7 @@ of truth for all scoring decisions.
 # STRICT RULES
 1. **Fidelity to the rubric.** Parse ONLY what the rubric explicitly states. \
 Do not infer, add, or expand criteria beyond the written text.
+1a. **OR / choice questions.** If the question text contains "(a) ... OR (b) ..." (or similar alternatives), the rubric applies to whichever option the student will answer; do not double-count or split criteria across options.
 2. **Evidence point decomposition.** For each criterion, break down the description \
 into discrete, verifiable evidence points — specific facts, concepts, examples, or \
 reasoning steps a student must demonstrate to earn marks.

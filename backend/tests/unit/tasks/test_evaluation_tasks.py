@@ -40,7 +40,7 @@ class TestCheckScriptCompletion:
 
     @patch("app.tasks.evaluation.ScriptRepository")
     @patch("app.tasks.evaluation.EvaluationResultRepository")
-    def test_marks_flagged_when_has_flagged_answers(self, mock_eval_repo_cls, mock_script_repo_cls):
+    def test_marks_in_review_when_has_flagged_answers(self, mock_eval_repo_cls, mock_script_repo_cls):
         mock_script_repo = MagicMock()
         mock_script_repo.find_by_id.return_value = {
             "_id": "script_002",
@@ -54,6 +54,7 @@ class TestCheckScriptCompletion:
         mock_eval_repo = MagicMock()
         mock_eval_repo.find_by_script.return_value = [
             {"questionId": "q1", "status": "COMPLETE"},
+            {"questionId": "q2", "status": "COMPLETE"},
         ]
         mock_eval_repo_cls.return_value = mock_eval_repo
 
@@ -61,7 +62,7 @@ class TestCheckScriptCompletion:
 
         mock_script_repo.update_one.assert_called_once()
         update_call = mock_script_repo.update_one.call_args
-        assert update_call[0][1]["$set"]["status"] == "FLAGGED"
+        assert update_call[0][1]["$set"]["status"] == "IN_REVIEW"
 
     @patch("app.tasks.evaluation.ScriptRepository")
     @patch("app.tasks.evaluation.EvaluationResultRepository")

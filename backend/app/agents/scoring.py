@@ -1,14 +1,16 @@
 """
-ScoringAgent — scores a student's answer against ONE rubric criterion at a time.
-Per-criterion isolation prevents score inflation from holistic scoring.
+ScoringAgent — scores a student's answer against rubric criteria.
+Supports single-criterion (legacy) and batched scoring (one LLM call for all criteria).
 """
 
 from __future__ import annotations
 
 import json
+import time
 
 from app.agents.base import BaseAgent
-from app.domain.models.evaluation import CriterionScore
+from app.common.observability import evaluation_duration, structured_log
+from app.domain.models.evaluation import BatchCriterionScores, CriterionScore
 
 SYSTEM_PROMPT = """\
 # ROLE
@@ -25,6 +27,7 @@ human examiner who must justify every mark to an auditor.
 # STRICT RULES
 1. **One criterion at a time.** You are evaluating against a single, specific \
 criterion. Ignore all other aspects of the answer that are not relevant to THIS criterion.
+1b. **OR questions.** If the question has "(a) ... OR (b) ...", identify which option the student answered and score only that option; ignore the other.
 2. **Evidence-based scoring only.** Every mark you award must be backed by a \
 specific quote from the student's answer. If you cannot point to evidence, the \
 mark is 0 for that aspect.
@@ -71,6 +74,35 @@ for spelling mistakes that are clearly OCR artifacts (e.g., "polynorphism" for \
 - DO NOT use justificationQuote to quote the rubric — quote the STUDENT'S answer
 """
 
+SYSTEM_PROMPT_BATCH = """\
+# ROLE
+You are Examiner-1, an impartial academic examiner. You evaluate a student's answer against \
+MULTIPLE rubric criteria in one pass. Return one score object per criterion.
+
+# RULES
+1. **Evidence-based.** Every mark must be backed by a verbatim quote from the student's answer.
+2. **Exact quoting.** justificationQuote must be a verbatim substring from the answer.
+3. **Partial credit.** Use 0.25 granularity; marksAwarded ≤ maxMarks per criterion.
+4. **One entry per criterion.** Output a "scores" array with exactly one object per criterion in the order given.
+5. **OCR tolerance.** Do not penalize obvious OCR artifacts.
+6. **OR / choice questions.** If the question presents alternatives (e.g. "(a) ... OR (b) ..."), determine which option (a or b) the student actually answered from the content of their answer, and score ONLY that option. Ignore content that refers to the other option. The question text includes both options for context; your job is to identify which one was attempted and evaluate accordingly.
+7. **Output ONLY valid JSON** with a single key "scores" whose value is an array of score objects.
+
+# OUTPUT SCHEMA
+{
+  "scores": [
+    {
+      "criterionId": "<exact from input>",
+      "marksAwarded": <float 0 to maxMarks>,
+      "maxMarks": <float>,
+      "justificationQuote": "<verbatim from student answer>",
+      "justificationReason": "<1-3 sentences>",
+      "confidenceScore": <float 0.0-1.0>
+    }
+  ]
+}
+"""
+
 
 class ScoringAgent(BaseAgent[CriterionScore]):
     agent_name = "scoring_agent"
@@ -107,7 +139,85 @@ class ScoringAgent(BaseAgent[CriterionScore]):
         question_text: str,
         trace_id: str = "",
     ) -> tuple[list[CriterionScore], list[dict]]:
-        """Score each criterion independently. Returns (scores, metadata_list)."""
+        """Score all criteria in one LLM call when possible; fallback to per-criterion on batch failure."""
+        if len(grounded_criteria) == 0:
+            return [], []
+        if len(grounded_criteria) == 1:
+            return self._score_one_by_one(
+                answer_text=answer_text,
+                grounded_criteria=grounded_criteria,
+                question_text=question_text,
+                trace_id=trace_id,
+            )
+        try:
+            return self.score_all_criteria_batched(
+                answer_text=answer_text,
+                grounded_criteria=grounded_criteria,
+                question_text=question_text,
+                trace_id=trace_id,
+            )
+        except Exception:
+            return self._score_one_by_one(
+                answer_text=answer_text,
+                grounded_criteria=grounded_criteria,
+                question_text=question_text,
+                trace_id=trace_id,
+            )
+
+    def score_all_criteria_batched(
+        self,
+        *,
+        answer_text: str,
+        grounded_criteria: list[dict],
+        question_text: str,
+        trace_id: str = "",
+    ) -> tuple[list[CriterionScore], list[dict]]:
+        """One LLM call for all criteria — significantly faster than N separate calls."""
+        start = time.perf_counter_ns()
+        criteria_block = json.dumps(grounded_criteria, indent=2)
+        user_prompt = (
+            f"## Question\n{question_text}\n\n"
+            f"## Student's Answer\n```\n{answer_text}\n```\n\n"
+            f"## Rubric Criteria (score each in order; return one score object per criterion)\n"
+            f"```json\n{criteria_block}\n```\n\n"
+            "Return JSON with a \"scores\" array containing one object per criterion, in the same order."
+        )
+        structured_log("info", "scoring_agent batch starting", trace_id=trace_id, agent_name="scoring_agent")
+        parsed, llm_response = self._llm.complete_structured(
+            system_prompt=SYSTEM_PROMPT_BATCH,
+            user_prompt=user_prompt,
+            response_model=BatchCriterionScores,
+            agent_name=self.agent_name,
+            temperature=0.0,
+        )
+        elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
+        evaluation_duration.labels(agent_name=self.agent_name, status="success").observe(elapsed_ms / 1000)
+        meta = {
+            "agent_name": self.agent_name,
+            "latency_ms": elapsed_ms,
+            "prompt_tokens": llm_response.prompt_tokens,
+            "completion_tokens": llm_response.completion_tokens,
+        }
+        scores = parsed.scores
+        if len(scores) != len(grounded_criteria):
+            raise ValueError(
+                f"Batch returned {len(scores)} scores but {len(grounded_criteria)} criteria expected"
+            )
+        criterion_ids = {c.get("criterionId") for c in grounded_criteria}
+        for s in scores:
+            if s.criterion_id not in criterion_ids:
+                raise ValueError(f"Unexpected criterionId in batch: {s.criterion_id}")
+        return scores, [meta]
+
+    def _score_one_by_one(
+        self,
+        *,
+        answer_text: str,
+        grounded_criteria: list[dict],
+        question_text: str,
+        trace_id: str = "",
+    ) -> tuple[list[CriterionScore], list[dict]]:
+        """Score each criterion in a separate LLM call (fallback)."""
         scores: list[CriterionScore] = []
         all_meta: list[dict] = []
         for criterion in grounded_criteria:

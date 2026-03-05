@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { examAPI } from "@/services/api";
 import {
   Plus,
@@ -46,6 +48,7 @@ export function ExamPage() {
   const [showForm, setShowForm] = useState(false);
   const [createMode, setCreateMode] = useState<CreateMode>("upload");
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
+  const [examToDelete, setExamToDelete] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -125,6 +128,9 @@ export function ExamPage() {
 
       const { data } = await examAPI.upload(formData);
       toast.success(`Exam created! ${data.totalMarks} total marks extracted.`);
+      if (data.marksMismatchWarning) {
+        toast.warning(data.marksMismatchWarning, { duration: 8000 });
+      }
       resetForm();
       loadExams();
     } catch (err: any) {
@@ -260,6 +266,9 @@ export function ExamPage() {
                   <label className="block text-sm font-medium text-text-secondary mb-1.5">
                     Question Paper *
                   </label>
+                  <p className="text-xs text-text-muted mb-2">
+                    e.g. question paper_HISTORY.pdf — used to create the exam; students&apos; answer papers are uploaded separately.
+                  </p>
                   <label className={clsx(
                     "flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all",
                     questionFile
@@ -318,7 +327,7 @@ export function ExamPage() {
                 {creating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-                    Extracting with AI... (this may take 30-60s)
+                    Extracting with AI... (1–3 min, please wait)
                   </>
                 ) : (
                   "Extract & Create Exam"
@@ -453,10 +462,17 @@ export function ExamPage() {
         </div>
       ) : exams.length === 0 ? (
         <GlassCard>
-          <div className="text-center py-12">
-            <BookOpen className="w-12 h-12 text-text-muted mx-auto mb-4" />
-            <p className="text-text-secondary">No exams yet. Create one to get started.</p>
-          </div>
+          <EmptyState
+            icon={<BookOpen className="w-8 h-8 sm:w-10 sm:h-10 text-text-muted" />}
+            title="No exams yet"
+            description="Create an exam with questions and rubrics to start grading answer scripts."
+            action={
+              <button onClick={() => setShowForm(true)} className="btn-primary inline-flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                New Exam
+              </button>
+            }
+          />
         </GlassCard>
       ) : (
         <div className="space-y-3">
@@ -486,16 +502,9 @@ export function ExamPage() {
                     <Copy className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation();
-                      if (!confirm("Delete this exam? This cannot be undone.")) return;
-                      try {
-                        await examAPI.delete(exam.id);
-                        toast.success("Exam deleted");
-                        loadExams();
-                      } catch {
-                        toast.error("Failed to delete exam");
-                      }
+                      setExamToDelete(exam.id);
                     }}
                     className="text-text-muted hover:text-accent-red p-1"
                     title="Delete exam"
@@ -542,6 +551,27 @@ export function ExamPage() {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!examToDelete}
+        onClose={() => setExamToDelete(null)}
+        onConfirm={async () => {
+          if (!examToDelete) return;
+          try {
+            await examAPI.delete(examToDelete);
+            toast.success("Exam deleted");
+            setExamToDelete(null);
+            loadExams();
+          } catch {
+            toast.error("Failed to delete exam");
+          }
+        }}
+        title="Delete exam"
+        message="Delete this exam? Questions and rubrics will be removed. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }

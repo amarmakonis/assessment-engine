@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ClipboardCheck, ExternalLink, Trash2 } from "lucide-react";
+import { ClipboardCheck, Download, ExternalLink, Trash2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { dashboardAPI, evaluationAPI } from "@/services/api";
+import toast from "react-hot-toast";
 import { formatDistanceToNow } from "date-fns";
 
 interface ReviewItem {
@@ -21,6 +24,7 @@ interface ReviewItem {
 export function ReviewQueuePage() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteResultId, setDeleteResultId] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
     dashboardAPI
@@ -33,41 +37,75 @@ export function ReviewQueuePage() {
     loadData();
   }, [loadData]);
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this evaluation? This cannot be undone.")) return;
+  function handleDeleteClick(id: string) {
+    setDeleteResultId(id);
+  }
+
+  async function confirmDelete() {
+    if (!deleteResultId) return;
+    const id = deleteResultId;
+    setDeleteResultId(null);
     try {
       await evaluationAPI.deleteResult(id);
       setItems((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Evaluation deleted");
     } catch {
-      /* toast handled by caller if needed */
+      toast.error("Failed to delete evaluation");
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+  async function handleExportCSV() {
+    try {
+      const { data } = await dashboardAPI.exportReviewQueue();
+      const url = URL.createObjectURL(data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "review-queue.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Export downloaded");
+    } catch {
+      toast.error("Failed to export");
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="page-title flex items-center gap-2">
-          <ClipboardCheck className="w-6 h-6 text-accent-gold" />
-          Review Queue
-        </h2>
-        <p className="text-text-secondary text-base mt-1.5">
-          Evaluations requiring human review — {items.length} pending
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="page-title flex items-center gap-2">
+            <ClipboardCheck className="w-6 h-6 text-accent-gold" />
+            Review Queue
+          </h2>
+          <p className="text-text-secondary text-base mt-1.5">
+            Evaluations requiring human review — {items.length} pending
+          </p>
+        </div>
+        {items.length > 0 && (
+          <button
+            onClick={handleExportCSV}
+            className="btn-secondary flex items-center gap-2"
+            title="Export as CSV"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+        )}
       </div>
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
         <GlassCard>
-          <p className="text-center text-text-muted py-12">
-            No evaluations pending review
-          </p>
+          <EmptyState
+            icon={<ClipboardCheck className="w-8 h-8 sm:w-10 sm:h-10 text-text-muted" />}
+            title="No evaluations pending review"
+            description="All evaluations are either auto-approved or already reviewed."
+          />
         </GlassCard>
       ) : (
         <div className="space-y-3">
@@ -106,7 +144,7 @@ export function ReviewQueuePage() {
                     Review
                   </Link>
                   <button
-                    onClick={() => handleDelete(item.id)}
+                    onClick={() => handleDeleteClick(item.id)}
                     className="btn-secondary text-xs !px-2.5 !py-1.5 text-accent-red hover:bg-red-50 hover:border-red-200"
                     title="Delete evaluation"
                   >
@@ -118,6 +156,17 @@ export function ReviewQueuePage() {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!deleteResultId}
+        onClose={() => setDeleteResultId(null)}
+        onConfirm={confirmDelete}
+        title="Delete evaluation"
+        message="This evaluation will be permanently deleted. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -20,20 +20,17 @@ SYSTEM_PROMPT = """You are ExamExtractor-1, a precision document parser for educ
 Given the raw text extracted from a question paper and/or rubric document, produce a structured JSON output containing all questions, their marks, and grading rubric criteria.
 
 ## STRICT RULES
-1. Extract EVERY question from the document. Do not skip any.
-2. Preserve the EXACT question text as written in the document.
-3. If marks are specified next to a question (e.g., "[5 marks]", "(10)", "Marks: 5"), extract them accurately.
-4. If no marks are specified for a question, estimate reasonable marks based on context or set to 10.
-5. For rubrics: if a separate rubric document is provided, map each criterion to its corresponding question.
-6. If no rubric is provided, generate sensible default rubric criteria based on the question content:
-   - For definition questions: "Accuracy of definition", "Key terms used"
-   - For explanation questions: "Conceptual understanding", "Clarity of explanation", "Examples provided"
-   - For problem-solving: "Correct approach", "Computation accuracy", "Final answer"
-   - For essay questions: "Thesis clarity", "Supporting arguments", "Evidence quality", "Conclusion"
-7. Each rubric criterion MUST have marks that sum up to the question's total marks.
-8. Extract the exam title and subject if mentioned in the document.
-9. If the document has sections (Section A, B, etc.), still extract individual questions.
-10. Handle sub-questions (a, b, c) as separate questions if they have separate marks, otherwise combine them.
+1. **English only — ignore Hindi.** If the document is bilingual (Hindi and English), extract ONLY the English version of each question. Ignore all Hindi text. Do not create duplicate questions for the Hindi version. If the same question appears in both languages, include only the English questionText.
+2. **Question number = number as printed.** For each question, set `questionNumber` to the exact number shown on the paper (e.g. "24." or "Q. 24" → questionNumber 24). This ensures question 23 is stored as 23 and question 24 as 24; do not rely on list position alone. If the document has no explicit number, use the 1-based position in the sequence.
+3. **OR questions = one question, one mark total.** When the paper has "(a) ... OR (b) ..." (student answers either (a) or (b)), output ONE question: include the full text of both options in questionText, and set maxMarks to the marks for ONE option only (e.g. if (a) has 3 and (b) has 3, use maxMarks 3 so the total is not 6). The sum of all questions' maxMarks must match the document total (e.g. 80).
+4. **Extract exact marks per question.** Use the marks exactly as printed (e.g. "[5 marks]", "(2)", "Marks: 4"). Do not scale or redistribute. The sum of all maxMarks must equal the stated maximum (e.g. Maximum Marks : 80).
+5. Extract EVERY question from the document (English only). Do not skip any.
+6. Preserve the EXACT question text as written (English only). For OR questions, keep both (a) and (b) in questionText so the evaluator can tell which option the student answered.
+7. For rubrics: if a separate rubric document is provided, map each criterion to its corresponding question.
+8. If no rubric is provided, generate sensible default rubric criteria. Each criterion's maxMarks must sum to the question's maxMarks.
+9. Extract the exam title and subject if mentioned.
+10. If the document has sections (Section A, B, etc.), still extract individual questions (English only). Use the printed question number for each.
+11. Sub-questions (a), (b), (c) that are all to be answered (no OR) may be separate questions if they have separate marks; if they share one mark block, combine. For "(a) ... OR (b) ..." always one question with maxMarks = one option's marks.
 
 ## OUTPUT SCHEMA (strict JSON)
 {
@@ -41,13 +38,11 @@ Given the raw text extracted from a question paper and/or rubric document, produ
   "subject": "string — subject if found, otherwise 'General'",
   "questions": [
     {
-      "questionText": "string — the full question text",
-      "maxMarks": number,
+      "questionNumber": <number, as printed on the document e.g. 1, 2, 24 — required for correct numbering>,
+      "questionText": "string — the full question text (for OR questions, include both (a) and (b) options)",
+      "maxMarks": number — exact marks for this question (for OR questions, the marks for one option only, e.g. 3 not 6),
       "rubric": [
-        {
-          "description": "string — what to evaluate",
-          "maxMarks": number
-        }
+        { "description": "string", "maxMarks": number }
       ]
     }
   ]
@@ -62,6 +57,7 @@ class RubricItem(BaseModel):
 
 
 class ExtractedQuestion(BaseModel):
+    question_number: int | None = Field(default=None, alias="questionNumber")
     question_text: str = Field(alias="questionText")
     max_marks: float = Field(alias="maxMarks")
     rubric: list[RubricItem] = Field(default_factory=list)
@@ -114,13 +110,43 @@ def extract_exam_from_text(
         raise ValueError(f"Could not parse exam from document: {exc}") from exc
 
 
+# Minimum characters from fast extraction to skip Vision (avoids N API calls for typed PDFs).
+_PDF_FAST_EXTRACT_MIN_CHARS = 80
+
+
+def extract_text_from_pdf_fast(pdf_path: str) -> str:
+    """Extract text from PDF using pypdf — no API calls, instant for typed question papers."""
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(pdf_path)
+        parts = []
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text()
+            if text and text.strip():
+                parts.append(f"--- Page {i + 1} ---\n{text.strip()}")
+        return "\n\n".join(parts) if parts else ""
+    except Exception as e:
+        logger.warning("Fast PDF extraction failed, will use Vision: %s", e)
+        return ""
+
+
 def extract_text_from_pdf_via_vision(pdf_path: str) -> str:
-    """Convert PDF pages to images and extract text using OpenAI Vision."""
+    """
+    Extract text from PDF: try fast path (pypdf, no API) first.
+    Only use OpenAI Vision (one call per page) for scanned/handwritten PDFs where fast path returns little text.
+    """
+    fast_text = extract_text_from_pdf_fast(pdf_path)
+    if len(fast_text.strip()) >= _PDF_FAST_EXTRACT_MIN_CHARS:
+        logger.info("Using fast PDF text extraction (no Vision API calls)")
+        return fast_text
+
+    logger.info("Fast extraction yielded little text; using Vision API per page")
     import os
     import tempfile
     from pdf2image import convert_from_path
 
-    images = convert_from_path(pdf_path, dpi=200)
+    images = convert_from_path(pdf_path, dpi=150)
     gateway = get_llm_gateway()
     all_text = []
 

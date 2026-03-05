@@ -3,10 +3,11 @@ import { describe, it, expect } from "vitest";
 import { PipelineTracker } from "@/components/dashboard/PipelineTracker";
 
 describe("PipelineTracker", () => {
-  it("renders all five stages", () => {
+  it("renders all six stages", () => {
     render(<PipelineTracker currentStatus="UPLOADED" />);
     expect(screen.getByText("Uploaded")).toBeDefined();
     expect(screen.getByText("OCR")).toBeDefined();
+    expect(screen.getByText("Segmenting")).toBeDefined();
     expect(screen.getByText("Segmented")).toBeDefined();
     expect(screen.getByText("Evaluating")).toBeDefined();
     expect(screen.getByText("Complete")).toBeDefined();
@@ -16,7 +17,7 @@ describe("PipelineTracker", () => {
     const { container } = render(
       <PipelineTracker currentStatus="PROCESSING" />
     );
-    expect(container.querySelector(".animate-glow-pulse")).toBeDefined();
+    expect(container.querySelector(".animate-pulse")).toBeDefined();
   });
 
   it("handles COMPLETE status", () => {

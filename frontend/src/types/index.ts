@@ -7,9 +7,10 @@ export type UploadStatus =
   | "EVALUATED"
   | "COMPLETE"
   | "FAILED"
-  | "FLAGGED";
+  | "FLAGGED"
+  | "IN_REVIEW";
 
-export type ScriptStatus = "PENDING" | "EVALUATING" | "COMPLETE" | "FLAGGED";
+export type ScriptStatus = "PENDING" | "EVALUATING" | "COMPLETE" | "FLAGGED" | "IN_REVIEW";
 
 export type EvaluationStatus = "PENDING" | "COMPLETE" | "OVERRIDDEN" | "FAILED";
 
@@ -104,8 +105,8 @@ export interface EvaluationResult {
   runId: string;
   scriptId: string;
   questionId: string;
-  evaluationVersion: string;
-  groundedRubric: {
+  evaluationVersion?: string;
+  groundedRubric?: {
     totalMarks: number;
     criteria: {
       criterionId: string;
@@ -115,16 +116,16 @@ export interface EvaluationResult {
       isAmbiguous: boolean;
     }[];
     groundingConfidence: number;
-  };
+  } | null;
   criterionScores: CriterionScore[];
-  consistencyAudit: ConsistencyAudit;
-  feedback: StudentFeedback;
-  explainability: ExplainabilityResult;
+  consistencyAudit?: ConsistencyAudit | null;
+  feedback?: StudentFeedback | null;
+  explainability?: ExplainabilityResult | null;
   totalScore: number;
   maxPossibleScore: number;
   percentageScore: number;
   reviewRecommendation: ReviewRecommendation;
-  reviewerOverride: {
+  reviewerOverride?: {
     reviewerId: string;
     overrideScore: number;
     note: string;
@@ -136,15 +137,31 @@ export interface EvaluationResult {
   createdAt: string;
 }
 
+export interface ScriptAnswer {
+  questionId: string;
+  text: string;
+  isFlagged?: boolean;
+}
+
+export interface ScriptQuestion {
+  questionId: string;
+  questionText: string;
+  maxMarks: number;
+}
+
 export interface ScriptEvaluation {
   scriptId: string;
   studentMeta: StudentMeta;
   status: ScriptStatus;
   totalScore: number;
   maxPossibleScore: number;
+  /** Full paper total marks (same as maxPossibleScore when all questions are included). */
+  examTotalMarks?: number;
   percentageScore: number;
   questionCount: number;
   evaluatedCount: number;
+  answers?: ScriptAnswer[];
+  questions?: ScriptQuestion[];
   evaluations: EvaluationResult[];
 }
 

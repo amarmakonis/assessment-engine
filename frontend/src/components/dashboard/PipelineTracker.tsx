@@ -7,11 +7,13 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 
 const STAGES = [
   { key: "UPLOADED", label: "Uploaded", icon: Upload },
   { key: "PROCESSING", label: "OCR", icon: ScanText },
+  { key: "OCR_COMPLETE", label: "Segmenting", icon: Loader2 },
   { key: "SEGMENTED", label: "Segmented", icon: Scissors },
   { key: "EVALUATING", label: "Evaluating", icon: Brain },
   { key: "COMPLETE", label: "Complete", icon: CheckCircle },
@@ -21,11 +23,12 @@ const STAGE_ORDER: Record<string, number> = {
   UPLOADED: 0,
   PROCESSING: 1,
   OCR_COMPLETE: 2,
-  SEGMENTED: 2,
-  EVALUATING: 3,
-  EVALUATED: 4,
-  COMPLETE: 4,
-  FLAGGED: -1,
+  SEGMENTED: 3,
+  EVALUATING: 4,
+  EVALUATED: 5,
+  COMPLETE: 5,
+  IN_REVIEW: 5, // Evaluation done; needs human review (not a pipeline failure)
+  FLAGGED: -1,  // Pipeline failure (e.g. segmentation failed)
   FAILED: -1,
 };
 
@@ -92,6 +95,9 @@ export function PipelineTracker({ currentStatus, compact }: PipelineTrackerProps
               >
                 {stage.label}
               </span>
+              {isActive && stage.key === "OCR_COMPLETE" && (
+                <span className="text-[8px] text-text-muted block">2–5 min for long scripts</span>
+              )}
             </div>
             {idx < STAGES.length - 1 && (
               <div

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 
@@ -36,6 +37,26 @@ ALLOWED_DOC_MIMES = {
 }
 
 
+def _detect_stated_maximum_marks(raw_text: str) -> int | None:
+    """Detect stated maximum marks from document text (e.g. 'Maximum Marks : 80')."""
+    if not raw_text or not raw_text.strip():
+        return None
+    # Common patterns: "Maximum Marks : 80", "Max. Marks: 80", "Total: 80", "Total Marks 80"
+    patterns = [
+        r"(?:Maximum|Max\.?)\s*Marks?\s*[:\s]+\s*(\d+)",
+        r"Total\s*(?:Marks?)?\s*[:\s]+\s*(\d+)",
+        r"(?:Full\s+)?Marks?\s*[:\s]+\s*(\d+)",
+    ]
+    for pat in patterns:
+        m = re.search(pat, raw_text, re.IGNORECASE)
+        if m:
+            try:
+                return int(m.group(1))
+            except (ValueError, IndexError):
+                continue
+    return None
+
+
 class RubricCriterionInput(BaseModel):
     description: str
     max_marks: float = Field(alias="maxMarks", gt=0)
@@ -43,6 +64,7 @@ class RubricCriterionInput(BaseModel):
 
 
 class QuestionInput(BaseModel):
+    question_number: int | None = Field(default=None, alias="questionNumber")
     question_text: str = Field(alias="questionText", min_length=1)
     max_marks: float = Field(alias="maxMarks", gt=0)
     rubric: list[RubricCriterionInput] = Field(default_factory=list)
@@ -126,6 +148,14 @@ class ExamUploadView(MethodView):
 
         extracted = extract_exam_from_text(question_text, rubric_text)
 
+        stated_max = _detect_stated_maximum_marks(question_text)
+        extracted_total = sum(q.max_marks for q in extracted.questions)
+        marks_mismatch = (
+            stated_max is not None
+            and stated_max > 0
+            and abs(extracted_total - stated_max) > 0.01
+        )
+
         title_override = request.form.get("title")
         subject_override = request.form.get("subject")
         if title_override:
@@ -158,6 +188,7 @@ class ExamUploadView(MethodView):
         questions_data = []
         for q in extracted.questions:
             questions_data.append(QuestionInput(
+                questionNumber=q.question_number,
                 questionText=q.question_text,
                 maxMarks=q.max_marks,
                 rubric=[
@@ -172,7 +203,16 @@ class ExamUploadView(MethodView):
             questions=questions_data,
         )
 
-        return _create_exam_from_data(create_req)
+        response, status = _create_exam_from_data(create_req)
+        if marks_mismatch and isinstance(response, dict):
+            response["statedMaxMarks"] = stated_max
+            response["extractedTotalMarks"] = extracted_total
+            response["marksMismatchWarning"] = (
+                f"Document states maximum marks as {stated_max}, but extracted "
+                f"questions total {extracted_total}. Please review the exam and "
+                "edit question marks if needed."
+            )
+        return response, status
 
 
 @exam_bp.route("/<exam_id>")
@@ -260,7 +300,8 @@ def _create_exam_from_data(data: CreateExamRequest) -> tuple[dict, int]:
 
     questions = []
     for i, q in enumerate(data.questions, start=1):
-        q_id = f"q{i}"
+        # Use printed question number when present so Q23 stays q23 and Q24 stays q24
+        q_id = f"q{q.question_number}" if q.question_number is not None else f"q{i}"
         rubric_criteria = []
 
         has_real_descriptions = q.rubric and any(c.description.strip() for c in q.rubric)

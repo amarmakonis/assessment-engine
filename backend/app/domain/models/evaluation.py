@@ -51,6 +51,13 @@ class CriterionScore(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class BatchCriterionScores(BaseModel):
+    """Wrapper for single-call scoring of all criteria (reduces LLM round-trips)."""
+    scores: list[CriterionScore] = Field(alias="scores")
+
+    model_config = {"populate_by_name": True}
+
+
 # ── Consistency Audit ──────────────────────────────────────
 
 class ScoreAdjustment(BaseModel):

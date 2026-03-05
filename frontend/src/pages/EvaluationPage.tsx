@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Shield,
   Edit3,
-  ArrowLeft,
   RefreshCw,
   Loader2,
   Brain,
@@ -20,6 +19,8 @@ import {
   Square,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScoreBreakdownChart } from "@/components/dashboard/ScoreBreakdownChart";
 import { evaluationAPI } from "@/services/api";
@@ -37,6 +38,9 @@ export function EvaluationPage() {
   const [overrideId, setOverrideId] = useState<string | null>(null);
   const [overrideScore, setOverrideScore] = useState("");
   const [overrideNote, setOverrideNote] = useState("");
+  const [showStopModal, setShowStopModal] = useState(false);
+  const [showDeleteScriptModal, setShowDeleteScriptModal] = useState(false);
+  const [deleteResultId, setDeleteResultId] = useState<string | null>(null);
 
   function loadData() {
     if (!scriptId) return;
@@ -97,10 +101,13 @@ export function EvaluationPage() {
   if (!data || data.evaluations.length === 0) {
     return (
       <div className="space-y-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text-primary transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+        <Breadcrumbs
+          items={[
+            { label: "Dashboard", to: "/" },
+            { label: "Evaluations", to: "/evaluations" },
+            { label: data?.studentMeta?.name ? `${data.studentMeta.name} (${data.studentMeta.rollNo ?? "—"})` : "Evaluation" },
+          ]}
+        />
         <GlassCard>
           <div className="text-center py-16">
             <Brain className="w-12 h-12 text-text-muted mx-auto mb-4 opacity-50" />
@@ -123,12 +130,15 @@ export function EvaluationPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", to: "/" },
+          { label: "Evaluations", to: "/evaluations" },
+          { label: `${data.studentMeta.name || "Script"} (${data.studentMeta.rollNo || "—"})` },
+        ]}
+      />
       <div className="flex items-start justify-between">
         <div>
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text-primary transition-colors mb-3">
-            <ArrowLeft className="w-4 h-4" />
-            Back to list
-          </button>
           <h2 className="page-title">Evaluation Results</h2>
           <div className="flex items-center gap-3 mt-1.5">
             <p className="text-text-secondary text-sm">
@@ -140,16 +150,7 @@ export function EvaluationPage() {
         <div className="flex items-center gap-4">
           {data.status === "EVALUATING" && (
             <button
-              onClick={async () => {
-                if (!scriptId || !confirm("Stop this evaluation?")) return;
-                try {
-                  await evaluationAPI.stopEvaluation(scriptId);
-                  toast.success("Evaluation stopped");
-                  loadData();
-                } catch {
-                  toast.error("Failed to stop evaluation");
-                }
-              }}
+              onClick={() => setShowStopModal(true)}
               className="btn-secondary text-sm flex items-center gap-2 text-accent-red hover:bg-red-50"
             >
               <Square className="w-4 h-4" />
@@ -165,39 +166,100 @@ export function EvaluationPage() {
             Re-evaluate
           </button>
           <button
-            onClick={async () => {
-              if (!scriptId || !confirm("Delete this script and all evaluations? This cannot be undone.")) return;
-              try {
-                await evaluationAPI.deleteScript(scriptId);
-                toast.success("Script deleted");
-                navigate("/evaluations");
-              } catch {
-                toast.error("Failed to delete script");
-              }
-            }}
+            onClick={() => setShowDeleteScriptModal(true)}
             className="btn-secondary text-sm flex items-center gap-2 text-accent-red hover:bg-red-50"
           >
             <Trash2 className="w-4 h-4" />
             Delete
           </button>
-          <div className="text-right">
-            <p className={clsx(
-              "text-4xl font-display font-bold",
-              pct >= 75 ? "text-accent-green" : pct >= 50 ? "text-accent-gold" : "text-accent-red"
-            )}>
-              {pct}%
-            </p>
-            <p className="text-sm text-text-secondary font-mono">
-              {data.totalScore}/{data.maxPossibleScore} marks
-            </p>
-          </div>
+        </div>
+      </div>
+      {/* Confirm modals */}
+      {scriptId && (
+        <>
+          <ConfirmModal
+            isOpen={showStopModal}
+            onClose={() => setShowStopModal(false)}
+            onConfirm={async () => {
+              if (!scriptId) return;
+              try {
+                await evaluationAPI.stopEvaluation(scriptId);
+                toast.success("Evaluation stopped");
+                setShowStopModal(false);
+                loadData();
+              } catch {
+                toast.error("Failed to stop evaluation");
+              }
+            }}
+            title="Stop evaluation"
+            message="Stop this evaluation? Remaining questions will not be scored."
+            confirmLabel="Stop"
+            cancelLabel="Cancel"
+            variant="danger"
+          />
+          <ConfirmModal
+            isOpen={showDeleteScriptModal}
+            onClose={() => setShowDeleteScriptModal(false)}
+            onConfirm={async () => {
+              if (!scriptId) return;
+              try {
+                await evaluationAPI.deleteScript(scriptId);
+                toast.success("Script deleted");
+                setShowDeleteScriptModal(false);
+                navigate("/evaluations");
+              } catch {
+                toast.error("Failed to delete script");
+              }
+            }}
+            title="Delete script"
+            message="Delete this script and all its evaluations? This cannot be undone."
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+            variant="danger"
+          />
+        </>
+      )}
+
+      <ConfirmModal
+        isOpen={!!deleteResultId}
+        onClose={() => setDeleteResultId(null)}
+        onConfirm={async () => {
+          if (!deleteResultId) return;
+          try {
+            await evaluationAPI.deleteResult(deleteResultId);
+            toast.success("Evaluation deleted");
+            setDeleteResultId(null);
+            loadData();
+          } catch {
+            toast.error("Failed to delete evaluation");
+          }
+        }}
+        title="Delete evaluation"
+        message="Delete this evaluation result? This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
+
+      <div className="flex items-center gap-4">
+        <div className="text-right">
+          <p className={clsx(
+            "text-4xl font-display font-bold",
+            pct >= 75 ? "text-accent-green" : pct >= 50 ? "text-accent-gold" : "text-accent-red"
+          )}>
+            {pct}%
+          </p>
+          <p className="text-sm text-text-secondary font-mono">
+            {data.totalScore}/{data.maxPossibleScore} marks
+          </p>
+          <p className="text-xs text-text-muted mt-0.5">Full paper</p>
         </div>
       </div>
 
       <GlassCard className="!p-4">
         <div className="flex items-center justify-between text-sm text-text-secondary mb-2">
           <span>Overall Score</span>
-          <span className="font-mono">{data.evaluatedCount}/{data.questionCount} questions graded</span>
+          <span className="font-mono">{data.evaluatedCount}/{data.questionCount} questions checked</span>
         </div>
         <div className="w-full h-3 bg-surface rounded-full overflow-hidden">
           <div
@@ -211,31 +273,29 @@ export function EvaluationPage() {
       </GlassCard>
 
       <div className="space-y-3">
-        {data.evaluations.map((ev) => (
-          <QuestionAccordion
-            key={ev.questionId}
-            evaluation={ev}
-            isExpanded={expandedQ === ev.questionId}
-            onToggle={() => setExpandedQ(expandedQ === ev.questionId ? null : ev.questionId)}
-            overrideId={overrideId}
-            setOverrideId={setOverrideId}
-            overrideScore={overrideScore}
-            setOverrideScore={setOverrideScore}
-            overrideNote={overrideNote}
-            setOverrideNote={setOverrideNote}
-            submitOverride={submitOverride}
-            onDelete={async (id) => {
-              if (!confirm("Delete this evaluation? This cannot be undone.")) return;
-              try {
-                await evaluationAPI.deleteResult(id);
-                toast.success("Evaluation deleted");
-                loadData();
-              } catch {
-                toast.error("Failed to delete evaluation");
-              }
-            }}
-          />
-        ))}
+        {data.evaluations.map((ev) => {
+          const scriptAnswer = data.answers?.find((a) => a.questionId === ev.questionId);
+          const questionInfo = data.questions?.find((q) => q.questionId === ev.questionId);
+          return (
+            <QuestionAccordion
+              key={ev.questionId}
+              evaluation={ev}
+              answerText={scriptAnswer?.text}
+              questionText={questionInfo?.questionText}
+              isFlagged={scriptAnswer?.isFlagged}
+              isExpanded={expandedQ === ev.questionId}
+              onToggle={() => setExpandedQ(expandedQ === ev.questionId ? null : ev.questionId)}
+              overrideId={overrideId}
+              setOverrideId={setOverrideId}
+              overrideScore={overrideScore}
+              setOverrideScore={setOverrideScore}
+              overrideNote={overrideNote}
+              setOverrideNote={setOverrideNote}
+              submitOverride={submitOverride}
+              onDelete={(id) => setDeleteResultId(id)}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -243,6 +303,9 @@ export function EvaluationPage() {
 
 function QuestionAccordion({
   evaluation: ev,
+  answerText,
+  questionText,
+  isFlagged,
   isExpanded,
   onToggle,
   overrideId,
@@ -255,6 +318,9 @@ function QuestionAccordion({
   onDelete,
 }: {
   evaluation: EvaluationResult;
+  answerText?: string;
+  questionText?: string;
+  isFlagged?: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   overrideId: string | null;
@@ -266,6 +332,7 @@ function QuestionAccordion({
   submitOverride: (id: string) => void;
   onDelete?: (id: string) => void | Promise<void>;
 }) {
+  const isNotAttempted = (ev.totalScore === 0 && (!ev.criterionScores || ev.criterionScores.length === 0));
   const pct = ev.maxPossibleScore > 0 ? (ev.totalScore / ev.maxPossibleScore) * 100 : 0;
 
   function scoreLabel(ratio: number) {
@@ -274,7 +341,7 @@ function QuestionAccordion({
     return { color: "text-accent-red", bg: "bg-accent-red", border: "border-red-200" };
   }
 
-  const qColors = scoreLabel(pct / 100);
+  const qColors = isNotAttempted ? { color: "text-text-muted", bg: "bg-surface", border: "border-border" } : scoreLabel(pct / 100);
 
   return (
     <GlassCard className="!p-0 overflow-hidden">
@@ -287,12 +354,15 @@ function QuestionAccordion({
         </div>
         <div className="flex-1 text-left">
           <p className="font-medium text-text-primary">Question {ev.questionId.replace("q", "")}</p>
-          <div className="flex items-center gap-3 mt-0.5">
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             <span className={clsx("font-mono text-sm font-bold", qColors.color)}>
               {ev.totalScore}/{ev.maxPossibleScore}
             </span>
-            <span className="text-text-muted text-xs">({pct.toFixed(1)}%)</span>
-            <StatusBadge status={ev.reviewRecommendation} />
+            {!isNotAttempted && <span className="text-text-muted text-xs">({pct.toFixed(1)}%)</span>}
+            {isNotAttempted && (
+              <span className="text-xs px-2 py-0.5 rounded bg-surface text-text-muted border border-border">Not attempted</span>
+            )}
+            {!isNotAttempted && <StatusBadge status={ev.reviewRecommendation} />}
             {ev.reviewerOverride && (
               <span className="text-xs text-accent-orange flex items-center gap-1">
                 <Edit3 className="w-3 h-3" /> Overridden
@@ -317,6 +387,37 @@ function QuestionAccordion({
 
       {isExpanded && (
         <div className="border-t border-border p-5 space-y-6 animate-in">
+          {/* Question and Student's Answer — clear Q→A mapping */}
+          <div className="space-y-4">
+            {questionText && (
+              <div className="rounded-xl border border-border bg-blue-50/50 p-4">
+                <h4 className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Question
+                </h4>
+                <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{questionText}</p>
+              </div>
+            )}
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <h4 className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+                <Edit3 className="w-3.5 h-3.5" />
+                Student&apos;s answer
+                {isFlagged && (
+                  <span className="ml-2 text-accent-gold text-xs font-normal">(no answer extracted / not attempted)</span>
+                )}
+              </h4>
+              <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap min-h-[2rem]">
+                {answerText != null && answerText !== "" ? answerText : <span className="italic text-text-muted">No answer provided for this question.</span>}
+              </p>
+            </div>
+          </div>
+
+          {isNotAttempted && (
+            <p className="text-sm text-text-muted italic">This question was not attempted — no answer was found in the script. Marks: 0/{ev.maxPossibleScore}.</p>
+          )}
+
+          {!isNotAttempted && (
+          <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <h4 className="flex items-center gap-2 text-sm font-semibold text-text-primary mb-3">
@@ -463,6 +564,8 @@ function QuestionAccordion({
               <span>Prompt: <span className="text-text-secondary">{ev.tokensUsed.prompt?.toLocaleString()}</span></span>
               <span>Completion: <span className="text-text-secondary">{ev.tokensUsed.completion?.toLocaleString()}</span></span>
             </div>
+          )}
+          </>
           )}
 
           <div className="border-t border-border pt-4">

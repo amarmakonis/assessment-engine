@@ -26,27 +26,53 @@ span multiple pages, or use shorthand like "Q1", "Ans 1", "1)", "1.", etc.
 clues from the content to match text to the right question.
 
 # STRICT RULES
-1. **Verbatim extraction only.** Copy the student's answer text exactly as it appears \
+1. **Only the student's response.** For each question, `answerText` must contain \
+ONLY what the student wrote in response — never the question text itself. Answer \
+booklets often repeat the question (in English, Hindi, or both) above the student's \
+answer; you must EXCLUDE that repeated question stem. If the OCR block has \
+"Question... (repeated in Hindi/English) ... then student's answer", put ONLY the \
+student's answer in `answerText`. Do not include the question, options (A/B/C/D), \
+assertion/reason wording, or any text that is a copy of the question. For \
+multiple-choice or assertion-reason, the student's answer is their choice (e.g. \
+"(c)", "Option B") or their brief explanation — not the full question or options \
+repeated in another language.
+2. **Verbatim extraction only.** Copy the student's answer text exactly as it appears \
 in the OCR transcript. Do NOT correct spelling, fix grammar, rephrase, summarize, \
 paraphrase, or "clean up" the text in any way.
-2. **Every question must appear in your output.** If a question has no identifiable \
+3. **Every question must appear in your output.** If a question has no identifiable \
 answer in the transcript, set its `answerText` to `null` — never omit the questionId.
-3. **No invented content.** If you are uncertain whether text belongs to a question, \
-assign it to `unmappedText` rather than guessing.
-4. **Boundary precision.** When two answers are adjacent with no clear separator, \
+4. **Do not miss real answers.** Missing a student's answer is a serious error. If \
+a block of text could reasonably be an answer to a question (e.g. it follows a \
+question number, or fits the question topic), map it to that question. Only put \
+text in `unmappedText` when it clearly cannot belong to any question (e.g. page \
+headers, footers, "Roll No:", watermarks, illegible scribbles). When in doubt, \
+map to the most likely question and mention the uncertainty in `notes`.
+5. **Consistency.** The same OCR transcript must always produce the same mapping. \
+Be systematic: use question markers (Q1, 1., Question 1, etc.) and document flow \
+to assign every substantial answer block to a question.
+6. **Boundary precision.** When two answers are adjacent with no clear separator, \
 prefer splitting at the point that makes semantic sense given the question topics. \
 Include a note explaining the ambiguous boundary.
-5. **Handle OCR noise gracefully.** Ignore page numbers, headers like "Roll No:", \
+7. **Handle OCR noise gracefully.** Ignore page numbers, headers like "Roll No:", \
 "Exam:", watermarks, or repeated lines that are clearly artifacts.
-6. **Question number detection.** Look for patterns: "Q1", "Ques 1", "1.", "1)", \
-"Answer 1", "(a)", "(i)", "Ans:", and similar variants. Be tolerant of OCR errors \
-in these markers (e.g., "Ql" for "Q1", "0.1" for "Q1").
-7. **Confidence scoring.** Rate your overall confidence in the segmentation:
+8. **Question number detection.** Look for patterns: "Q1", "Ques 1", "1.", "1)", \
+"Answer 1", "(a)", "(i)", "Ans:", "Question 1", "Q.2", "Section A", and similar variants. \
+Be tolerant of OCR errors in these markers (e.g., "Ql" for "Q1", "0.1" for "Q1"). \
+Whenever you see such a marker followed by substantive text, that text must be mapped \
+to the corresponding question — do not leave it in unmappedText.
+9. **Essay and subject-style papers (e.g. History, long-answer).** Answers may be long \
+paragraphs or multi-page. Preserve the full answer text for each question. Use section \
+headers, question numbers, and sub-part markers (e.g. "1.(a)", "1.(b)", "2.") in the \
+script to split answers. Do not truncate; include the entire student response for that question.
+10. **OR / choice questions.** If the paper has a question with "(a) ... OR (b) ...", the student \
+will have answered only one option. Map that answer to the single questionId for that question \
+(e.g. q24). Do not create separate entries for (a) and (b); one questionId, one answer text.
+11. **Confidence scoring.** Rate your overall confidence in the segmentation:
    - 0.9–1.0: Clear question markers, unambiguous mapping
    - 0.7–0.89: Most answers identifiable but some boundaries uncertain
    - 0.5–0.69: Significant ambiguity, multiple guesses required
    - Below 0.5: Unable to reliably segment — flag for human review
-8. **Output ONLY valid JSON.** No markdown, no explanation text, no preamble.
+12. **Output format.** Return exactly one JSON object. Do NOT wrap it in markdown code blocks (no ```). No text, explanation, or preamble before or after the JSON. Keep "notes" and "unmappedText" to 1–2 short sentences so the response is not truncated.
 
 # OUTPUT SCHEMA (strict)
 {
@@ -67,6 +93,9 @@ in these markers (e.g., "Ql" for "Q1", "0.1" for "Q1").
 - Answer continues after interruption (e.g., "continued on next page") → concatenate
 - Multiple attempts at same question → include all text, note in `notes`
 - Completely illegible section → assign to `unmappedText`, note it
+- Bilingual scripts (e.g. question in English, same question in Hindi on script): \
+`answerText` must be ONLY the student's response (e.g. chosen option, written answer). \
+Do NOT put the repeated question text (in Hindi or English) into `answerText`.
 """
 
 
@@ -94,5 +123,5 @@ class SegmentationAgent(BaseAgent[SegmentationResult]):
             f"This is the unprocessed OCR output from the student's handwritten "
             f"answer script. It may contain noise, artifacts, and formatting issues.\n"
             f"```\n{ocr_text}\n```\n\n"
-            f"Segment the transcript and return your JSON output now."
+            f"Segment the transcript. Reply with a single JSON object only (no markdown, no code fences)."
         )

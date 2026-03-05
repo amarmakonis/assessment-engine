@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  ArrowLeft,
   Loader2,
   ZoomIn,
   ZoomOut,
@@ -13,6 +12,7 @@ import {
   Check,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { OCRConfidenceMeter } from "@/components/dashboard/OCRConfidenceMeter";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ocrAPI } from "@/services/api";
@@ -22,7 +22,6 @@ import { clsx } from "clsx";
 
 export function OCRReviewPage() {
   const { scriptId } = useParams<{ scriptId: string }>();
-  const navigate = useNavigate();
   const [pages, setPages] = useState<OCRPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
@@ -85,12 +84,15 @@ export function OCRReviewPage() {
 
   return (
     <div className="space-y-4">
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", to: "/" },
+          { label: "Scripts", to: "/scripts" },
+          { label: "OCR Review" },
+        ]}
+      />
       <div className="flex items-center justify-between">
         <div>
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-text-muted hover:text-text-primary transition-colors mb-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back to scripts
-          </button>
           <h2 className="page-title">OCR Review</h2>
           <p className="text-text-secondary text-base mt-1">
             Review extracted text from the original document

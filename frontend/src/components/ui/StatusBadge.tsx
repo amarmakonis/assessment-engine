@@ -11,6 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   OVERRIDDEN: "badge-warning",
   FAILED: "badge-error",
   FLAGGED: "badge-error",
+  IN_REVIEW: "badge-warning",
   PENDING: "bg-text-muted/20 text-text-muted",
   AUTO_APPROVED: "badge-success",
   NEEDS_REVIEW: "badge-warning",
@@ -25,11 +26,16 @@ interface StatusBadgeProps {
   className?: string;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  IN_REVIEW: "In Review",
+};
+
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const style = STATUS_STYLES[status] ?? "badge-info";
+  const label = STATUS_LABELS[status] ?? status.replace(/_/g, " ");
   return (
     <span className={clsx("badge", style, className)}>
-      {status.replace(/_/g, " ")}
+      {label}
     </span>
   );
 }

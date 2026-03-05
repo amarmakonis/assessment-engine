@@ -8,6 +8,7 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  Download,
   Search,
   RefreshCw,
   Loader2,
@@ -15,8 +16,12 @@ import {
   TrendingUp,
   Trash2,
   Square,
+  Upload,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { evaluationAPI } from "@/services/api";
 import toast from "react-hot-toast";
@@ -36,7 +41,7 @@ interface EvalSummary {
   createdAt: string;
 }
 
-type FilterStatus = "" | "COMPLETE" | "EVALUATING" | "FLAGGED";
+type FilterStatus = "" | "COMPLETE" | "EVALUATING" | "IN_REVIEW" | "FLAGGED";
 
 export function EvaluationsListPage() {
   const [items, setItems] = useState<EvalSummary[]>([]);
@@ -46,6 +51,8 @@ export function EvaluationsListPage() {
   const [total, setTotal] = useState(0);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [stopScriptId, setStopScriptId] = useState<string | null>(null);
+  const [deleteScriptId, setDeleteScriptId] = useState<string | null>(null);
   const perPage = 20;
 
   const loadData = useCallback(
@@ -92,6 +99,7 @@ export function EvaluationsListPage() {
       ? filtered.reduce((s, i) => s + i.percentageScore, 0) / filtered.length
       : 0;
   const completedCount = filtered.filter((i) => i.status === "COMPLETE").length;
+  const inReviewCount = filtered.filter((i) => i.status === "IN_REVIEW").length;
   const reviewCount = filtered.filter((i) => i.needsReview).length;
 
   function scoreColor(pct: number) {
@@ -110,7 +118,7 @@ export function EvaluationsListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="page-title flex items-center gap-2">
             <Brain className="w-6 h-6 text-accent-purple" />
@@ -120,14 +128,39 @@ export function EvaluationsListPage() {
             AI-graded results for all uploaded answer scripts
           </p>
         </div>
-        <button
-          onClick={() => loadData(true)}
-          disabled={refreshing}
-          className="btn-secondary flex items-center gap-2"
-        >
-          <RefreshCw className={clsx("w-4 h-4", refreshing && "animate-spin")} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const { data } = await evaluationAPI.exportCSV(
+                  filterStatus ? { status: filterStatus } : undefined
+                );
+                const url = URL.createObjectURL(data as Blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "evaluations.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("Export downloaded");
+              } catch {
+                toast.error("Failed to export");
+              }
+            }}
+            className="btn-secondary flex items-center gap-2"
+            title="Export as CSV"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <RefreshCw className={clsx("w-4 h-4", refreshing && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -197,6 +230,7 @@ export function EvaluationsListPage() {
             { val: "" as FilterStatus, label: "All" },
             { val: "COMPLETE" as FilterStatus, label: "Completed" },
             { val: "EVALUATING" as FilterStatus, label: "In Progress" },
+            { val: "IN_REVIEW" as FilterStatus, label: "In Review" },
             { val: "FLAGGED" as FilterStatus, label: "Flagged" },
           ]).map((f) => (
             <button
@@ -217,18 +251,24 @@ export function EvaluationsListPage() {
 
       {/* Results List */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <GlassCard>
-          <div className="text-center py-16">
-            <Brain className="w-12 h-12 text-text-muted mx-auto mb-4 opacity-50" />
-            <p className="text-text-secondary font-medium">No evaluations found</p>
-            <p className="text-text-muted text-sm mt-1">
-              Upload answer scripts and they'll be evaluated automatically
-            </p>
-          </div>
+          <EmptyState
+            icon={<Brain className="w-8 h-8 sm:w-10 sm:h-10 text-text-muted" />}
+            title="No evaluations found"
+            description="Upload answer scripts and they'll be evaluated automatically."
+            action={
+              <Link to="/upload" className="btn-primary inline-flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Upload Scripts
+              </Link>
+            }
+          />
         </GlassCard>
       ) : (
         <div className="space-y-2 overflow-x-auto">
@@ -303,16 +343,7 @@ export function EvaluationsListPage() {
                         Processing...
                       </span>
                       <button
-                        onClick={async () => {
-                          if (!confirm("Stop this evaluation?")) return;
-                          try {
-                            await evaluationAPI.stopEvaluation(item.scriptId);
-                            toast.success("Evaluation stopped");
-                            loadData(true);
-                          } catch {
-                            toast.error("Failed to stop evaluation");
-                          }
-                        }}
+                        onClick={() => setStopScriptId(item.scriptId)}
                         className="btn-secondary text-xs !px-2.5 !py-1.5 text-accent-red hover:bg-red-50"
                         title="Stop evaluation"
                       >
@@ -329,16 +360,7 @@ export function EvaluationsListPage() {
                     </Link>
                   )}
                   <button
-                    onClick={async () => {
-                      if (!confirm("Delete this script and all its evaluations? This cannot be undone.")) return;
-                      try {
-                        await evaluationAPI.deleteScript(item.scriptId);
-                        toast.success("Script deleted");
-                        loadData(true);
-                      } catch {
-                        toast.error("Failed to delete script");
-                      }
-                    }}
+                    onClick={() => setDeleteScriptId(item.scriptId)}
                     className="btn-secondary text-xs !px-2.5 !py-1.5 text-accent-red hover:bg-red-50"
                     title="Delete script"
                   >
@@ -372,6 +394,47 @@ export function EvaluationsListPage() {
           </button>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!stopScriptId}
+        onClose={() => setStopScriptId(null)}
+        onConfirm={async () => {
+          if (!stopScriptId) return;
+          try {
+            await evaluationAPI.stopEvaluation(stopScriptId);
+            toast.success("Evaluation stopped");
+            setStopScriptId(null);
+            loadData(true);
+          } catch {
+            toast.error("Failed to stop evaluation");
+          }
+        }}
+        title="Stop evaluation"
+        message="Stop this evaluation? Remaining questions will not be scored."
+        confirmLabel="Stop"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
+      <ConfirmModal
+        isOpen={!!deleteScriptId}
+        onClose={() => setDeleteScriptId(null)}
+        onConfirm={async () => {
+          if (!deleteScriptId) return;
+          try {
+            await evaluationAPI.deleteScript(deleteScriptId);
+            toast.success("Script deleted");
+            setDeleteScriptId(null);
+            loadData(true);
+          } catch {
+            toast.error("Failed to delete script");
+          }
+        }}
+        title="Delete script"
+        message="Delete this script and all its evaluations? This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }

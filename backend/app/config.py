@@ -44,6 +44,9 @@ class AppSettings(BaseSettings):
     MONGO_DB_NAME: str = "aae_db"
     MONGO_MAX_POOL_SIZE: int = 50
     MONGO_MIN_POOL_SIZE: int = 10
+    # Optional: use with MongoDB Atlas to reduce timeouts in Celery workers (e.g. 60000 ms).
+    MONGO_SERVER_SELECTION_TIMEOUT_MS: int | None = None
+    MONGO_SOCKET_TIMEOUT_MS: int | None = None
 
     # ── Redis ──────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -71,16 +74,44 @@ class AppSettings(BaseSettings):
 
     # ── OpenAI (powers OCR + evaluation + all agents) ─────
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key (required)")
-    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MODEL: str = Field(
+        default="gpt-4o",
+        description="Model for evaluation/agents. Use gpt-4o-mini for faster, cheaper evaluation (slightly lower accuracy).",
+    )
     OPENAI_TEMPERATURE: float = 0.1
     OPENAI_MAX_TOKENS: int = 4096
-    OPENAI_TIMEOUT_SECONDS: int = 120
+    OPENAI_TIMEOUT_SECONDS: int = Field(default=120, description="Per-request timeout. Lower (e.g. 60–90) for faster fail.")
     OPENAI_MAX_RETRIES: int = 3
     OPENAI_ORGANIZATION: str = ""
+
+    # Model for segmentation. Default gpt-4o-mini for speed; set to OPENAI_MODEL or empty to use main model.
+    OPENAI_MODEL_SEGMENTATION: str | None = Field(default="gpt-4o-mini", description="Model for segmentation. Default gpt-4o-mini for speed. Set empty/None to use OPENAI_MODEL.")
+    # Max tokens for segmentation response (large scripts need 8k+). Lower = faster completion.
+    OPENAI_SEGMENTATION_MAX_TOKENS: int = Field(default=8192, description="Max completion tokens for segmentation. Lower (e.g. 4096) can speed up long scripts.")
+    # Cap OCR text length sent to segmentation (chars). Reduces latency for very long scripts. 0 = no cap.
+    SEGMENTATION_MAX_OCR_CHARS: int = Field(default=0, description="Max OCR chars sent to segmentation (0 = no cap). Set e.g. 80000 to speed up 30+ page scripts.")
+    SEGMENTATION_SOFT_TIME_LIMIT: int = Field(default=300, description="Celery soft time limit (seconds) for segment_answers.")
+    SEGMENTATION_TIME_LIMIT: int = Field(default=330, description="Celery hard time limit (seconds) for segment_answers.")
+    # Max tokens for evaluation sub-agents (rubric, consistency, feedback, explainability). Lower = faster.
+    OPENAI_EVALUATION_MAX_TOKENS: int = Field(default=2048, description="Max completion tokens per evaluation agent call. Lower = faster, may truncate long feedback.")
 
     # ── Upload Limits ──────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 50
     MAX_PAGES_PER_SCRIPT: int = 40
+
+    # ── OCR (answer papers: PDF → images → Vision per page) ─
+    OCR_DPI: int = Field(
+        default=150,
+        description="DPI for PDF→image conversion for answer papers. Lower (e.g. 150) = faster, smaller images; higher = better quality, slower.",
+    )
+    OCR_PAGE_SOFT_TIME_LIMIT: int = Field(
+        default=300,
+        description="Celery soft time limit (seconds) per OCR page. One slow page can exceed this; increase for large/dense scripts.",
+    )
+    OCR_PAGE_TIME_LIMIT: int = Field(
+        default=330,
+        description="Celery hard time limit (seconds) per OCR page. Must be > OCR_PAGE_SOFT_TIME_LIMIT.",
+    )
     ALLOWED_MIME_TYPES: list[str] = [
         "application/pdf",
         "image/jpeg",

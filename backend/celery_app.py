@@ -6,7 +6,7 @@ Configured for at-least-once delivery, idempotent tasks, and observability.
 from __future__ import annotations
 
 from celery import Celery
-from celery.signals import worker_init
+from celery.signals import worker_init, worker_process_init
 from kombu import Exchange, Queue
 
 from app.config import get_settings
@@ -47,12 +47,22 @@ celery.autodiscover_tasks(["app.tasks"])
 
 @worker_init.connect
 def on_worker_init(**_kwargs):
-    """Bootstrap per-worker resources (DB pools, etc.)."""
+    """Bootstrap worker main process (broker, etc.). MongoDB is inited in pool children via worker_process_init."""
     init_settings = get_settings()
-    from app.extensions import init_mongo, init_redis
+    from app.extensions import init_redis
 
-    init_mongo(
-        init_settings.MONGO_URI,
-        maxPoolSize=init_settings.MONGO_MAX_POOL_SIZE,
-    )
     init_redis(init_settings.REDIS_URL)
+
+
+@worker_process_init.connect
+def on_worker_process_init(**_kwargs):
+    """Run in each pool child after fork. Create a fresh MongoClient here so we avoid 'opened before fork' and Atlas timeouts."""
+    init_settings = get_settings()
+    from app.extensions import init_mongo
+
+    mongo_kwargs = {"maxPoolSize": init_settings.MONGO_MAX_POOL_SIZE}
+    if getattr(init_settings, "MONGO_SERVER_SELECTION_TIMEOUT_MS", None) is not None:
+        mongo_kwargs["serverSelectionTimeoutMS"] = init_settings.MONGO_SERVER_SELECTION_TIMEOUT_MS
+    if getattr(init_settings, "MONGO_SOCKET_TIMEOUT_MS", None) is not None:
+        mongo_kwargs["socketTimeoutMS"] = init_settings.MONGO_SOCKET_TIMEOUT_MS
+    init_mongo(init_settings.MONGO_URI, **mongo_kwargs)

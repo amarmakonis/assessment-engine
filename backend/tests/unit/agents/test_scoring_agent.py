@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.agents.scoring import ScoringAgent
-from app.domain.models.evaluation import CriterionScore
+from app.domain.models.evaluation import BatchCriterionScores, CriterionScore
 from app.domain.ports.llm import LLMResponse
 
 
@@ -85,20 +85,29 @@ class TestScoringAgent:
         assert meta["agent_name"] == "scoring_agent"
 
     def test_score_all_criteria(self, mock_gateway):
-        for cid, marks in [("c1", 1.5), ("c2", 2.5)]:
-            score = CriterionScore(
-                criterionId=cid,
-                marksAwarded=marks,
-                maxMarks=3.0,
-                justificationQuote="test quote",
-                justificationReason="test reason",
-                confidenceScore=0.9,
-            )
-            llm_resp = LLMResponse(
-                content="", prompt_tokens=100, completion_tokens=50,
-                total_tokens=150, model="gpt-4o", latency_ms=1000,
-            )
-            mock_gateway.complete_structured.return_value = (score, llm_resp)
+        # Batched path: one call returning BatchCriterionScores
+        s1 = CriterionScore(
+            criterionId="c1",
+            marksAwarded=1.5,
+            maxMarks=3.0,
+            justificationQuote="test quote",
+            justificationReason="test reason",
+            confidenceScore=0.9,
+        )
+        s2 = CriterionScore(
+            criterionId="c2",
+            marksAwarded=2.5,
+            maxMarks=3.0,
+            justificationQuote="test quote",
+            justificationReason="test reason",
+            confidenceScore=0.9,
+        )
+        batch = BatchCriterionScores(scores=[s1, s2])
+        llm_resp = LLMResponse(
+            content="", prompt_tokens=200, completion_tokens=100,
+            total_tokens=300, model="gpt-4o", latency_ms=1000,
+        )
+        mock_gateway.complete_structured.return_value = (batch, llm_resp)
 
         agent = ScoringAgent()
         scores, metas = agent.score_all_criteria(
@@ -112,4 +121,7 @@ class TestScoringAgent:
         )
 
         assert len(scores) == 2
-        assert len(metas) == 2
+        assert scores[0].criterion_id == "c1" and scores[0].marks_awarded == 1.5
+        assert scores[1].criterion_id == "c2" and scores[1].marks_awarded == 2.5
+        assert len(metas) == 1
+        assert metas[0]["prompt_tokens"] == 200

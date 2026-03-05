@@ -109,6 +109,7 @@ class OpenAIGateway:
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        model: str | None = None,
         max_retries: int = 2,
         agent_name: str = "unknown",
     ) -> tuple[T, LLMResponse]:
@@ -121,7 +122,7 @@ class OpenAIGateway:
         effective_temp = temperature if temperature is not None else 0.0
         llm_response = self.complete(
             system_prompt, user_prompt,
-            temperature=effective_temp, max_tokens=max_tokens,
+            temperature=effective_temp, max_tokens=max_tokens, model=model,
         )
 
         llm_latency.labels(agent_name=agent_name).observe(llm_response.latency_ms / 1000)
@@ -149,6 +150,7 @@ class OpenAIGateway:
                 _REPAIR_PROMPT.format(bad_json=content),
                 temperature=0.0,
                 max_tokens=max_tokens,
+                model=model,
             )
             total_prompt_tokens += repair_response.prompt_tokens
             total_completion_tokens += repair_response.completion_tokens
@@ -166,6 +168,13 @@ class OpenAIGateway:
                 )
                 return parsed, aggregated
 
+        logger.warning(
+            "Structured parse failed for %s after %d repairs; content length=%d, preview=%s",
+            agent_name,
+            max_retries,
+            len(content),
+            (content[:300] + "...") if len(content) > 300 else content,
+        )
         raise LLMError(
             f"Failed to parse structured response for {agent_name} "
             f"after {max_retries} repair attempts"
@@ -261,14 +270,27 @@ class OpenAIGateway:
 
     @staticmethod
     def _extract_json_block(text: str) -> str:
-        """Strip markdown code fences if present."""
+        """Strip markdown code fences and extract JSON object if wrapped in text."""
         stripped = text.strip()
         if stripped.startswith("```"):
             lines = stripped.split("\n")
             lines = lines[1:]
+            if lines and (lines[0].strip() == "json" or lines[0].strip().startswith("```")):
+                lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             stripped = "\n".join(lines).strip()
+        first = stripped.find("{")
+        if first != -1:
+            depth = 0
+            for i in range(first, len(stripped)):
+                if stripped[i] == "{":
+                    depth += 1
+                elif stripped[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        stripped = stripped[first : i + 1]
+                        break
         return stripped
 
     @staticmethod
@@ -276,5 +298,19 @@ class OpenAIGateway:
         try:
             data = json.loads(content)
             return model.model_validate(data)
-        except (json.JSONDecodeError, ValidationError):
+        except json.JSONDecodeError as e:
+            logger.debug(
+                "Structured parse failed (JSON): %s; content length=%d, preview=%s",
+                e.msg,
+                len(content),
+                content[:400] if content else "",
+            )
+            return None
+        except ValidationError as e:
+            logger.debug(
+                "Structured parse failed (validation): %s; content length=%d, preview=%s",
+                e,
+                len(content),
+                content[:400] if content else "",
+            )
             return None

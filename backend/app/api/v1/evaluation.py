@@ -4,10 +4,12 @@ Evaluation endpoints — results, reviewer overrides, export.
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 from datetime import datetime, timezone
 
-from flask import request
+from flask import request, Response
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
@@ -22,6 +24,7 @@ from app.common.exceptions import NotFoundError, ValidationError
 from app.domain.models.common import EvaluationStatus
 from app.infrastructure.db.repositories import (
     EvaluationResultRepository,
+    ExamRepository,
     ScriptRepository,
 )
 
@@ -45,8 +48,29 @@ class ScriptEvaluationView(MethodView):
 
         evals = EvaluationResultRepository().find_by_script(script_id)
 
+        def _question_sort_key(e):
+            qid = e.get("questionId", "") or ""
+            if qid.startswith("q") and qid[1:].isdigit():
+                return int(qid[1:])
+            return 0
+
+        evals_sorted = sorted(evals, key=_question_sort_key)
+
         total_score = sum(e.get("totalScore", 0) for e in evals)
         max_score = sum(e.get("maxPossibleScore", 0) for e in evals)
+
+        answers = script.get("answers") or []
+        exam_id = script.get("examId")
+        questions = []
+        exam_total_marks = 0
+        if exam_id:
+            exam = ExamRepository().find_by_id(exam_id, institution_id)
+            if exam:
+                questions = [
+                    {"questionId": q.get("questionId"), "questionText": q.get("questionText"), "maxMarks": q.get("maxMarks")}
+                    for q in exam.get("questions", [])
+                ]
+                exam_total_marks = exam.get("totalMarks") or max_score
 
         return {
             "scriptId": script_id,
@@ -54,10 +78,13 @@ class ScriptEvaluationView(MethodView):
             "status": script.get("status"),
             "totalScore": total_score,
             "maxPossibleScore": max_score,
+            "examTotalMarks": exam_total_marks,
             "percentageScore": round(total_score / max_score * 100, 2) if max_score else 0,
-            "questionCount": len(script.get("answers", [])),
+            "questionCount": len(answers),
             "evaluatedCount": len(evals),
-            "evaluations": [_serialize_eval(e) for e in evals],
+            "answers": answers,
+            "questions": questions,
+            "evaluations": [_serialize_eval(e) for e in evals_sorted],
         }
 
     @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
@@ -231,6 +258,63 @@ class EvaluationListView(MethodView):
             })
 
         return {"items": items, "total": total, "page": page, "perPage": per_page}
+
+
+@evaluation_bp.route("/export")
+class EvaluationExportView(MethodView):
+    @jwt_required
+    def get(self):
+        """Export evaluation list (script summaries) as CSV."""
+        institution_id = get_current_institution_id()
+        query = {"institutionId": institution_id}
+        if not can_see_all_institution_data():
+            query["createdBy"] = get_current_user_id()
+        filter_status = request.args.get("status")
+        if filter_status:
+            query["status"] = filter_status
+
+        script_repo = ScriptRepository()
+        eval_repo = EvaluationResultRepository()
+        scripts = script_repo.find_many(
+            query,
+            sort=[("createdAt", -1)],
+            limit=2000,
+        )
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow([
+            "scriptId", "examId", "studentName", "rollNo", "status", "totalScore",
+            "maxPossibleScore", "percentageScore", "questionCount", "evaluatedCount",
+            "needsReview", "createdAt",
+        ])
+        for s in scripts:
+            sid = str(s["_id"])
+            evals = eval_repo.find_by_script(sid)
+            total_score = sum(e.get("totalScore", 0) for e in evals)
+            max_score = sum(e.get("maxPossibleScore", 0) for e in evals)
+            pct = round(total_score / max_score * 100, 1) if max_score else 0
+            recommendations = [e.get("reviewRecommendation", "") for e in evals]
+            needs_review = any(r in ("NEEDS_REVIEW", "MUST_REVIEW") for r in recommendations)
+            meta = s.get("studentMeta") or {}
+            w.writerow([
+                sid,
+                s.get("examId", ""),
+                meta.get("name", ""),
+                meta.get("rollNo", ""),
+                s.get("status", ""),
+                total_score,
+                max_score,
+                pct,
+                len(s.get("answers", [])),
+                len(evals),
+                needs_review,
+                _fmt_dt(s.get("createdAt")),
+            ])
+        return Response(
+            out.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=evaluations.csv"},
+        )
 
 
 @evaluation_bp.route("/scripts/<script_id>/stop")

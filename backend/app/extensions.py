@@ -22,6 +22,12 @@ _prom_registry = CollectorRegistry(auto_describe=True)
 
 def init_mongo(uri: str, **kwargs) -> MongoClient:
     global _mongo_client
+    if _mongo_client is not None:
+        try:
+            _mongo_client.close()
+        except Exception:
+            pass
+        _mongo_client = None
     _mongo_client = MongoClient(uri, **kwargs)
     return _mongo_client
 

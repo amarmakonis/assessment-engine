@@ -153,6 +153,7 @@ class OCRTestView(MethodView):
         import magic
         from werkzeug.utils import secure_filename
 
+        from app.config import get_settings
         from app.infrastructure.ocr import extract_page_text
 
         if "file" not in request.files:
@@ -175,10 +176,14 @@ class OCRTestView(MethodView):
             if detected_mime == "application/pdf":
                 from pdf2image import convert_from_path
 
-                images = convert_from_path(local_path, dpi=200)
+                settings = get_settings()
+                dpi = getattr(settings, "OCR_DPI", 150)
+                images = convert_from_path(local_path, dpi=dpi)
+                # Test caps at 10 pages so it stays quick; pipeline processes all pages.
+                max_test_pages = 10
                 page_tasks = []
                 for i, img in enumerate(images, start=1):
-                    if i > 10:
+                    if i > max_test_pages:
                         break
                     page_path = os.path.join(tmpdir, f"page_{i}.png")
                     img.save(page_path, "PNG")

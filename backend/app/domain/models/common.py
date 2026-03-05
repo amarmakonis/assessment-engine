@@ -22,7 +22,8 @@ class UploadStatus(str, Enum):
     EVALUATING = "EVALUATING"
     EVALUATED = "EVALUATED"
     FAILED = "FAILED"
-    FLAGGED = "FLAGGED"
+    FLAGGED = "FLAGGED"  # Pipeline failure (e.g. segmentation failed)
+    IN_REVIEW = "IN_REVIEW"  # Evaluation done; one or more answers need human review
 
 
 class VirusScanStatus(str, Enum):
@@ -35,7 +36,8 @@ class ScriptStatus(str, Enum):
     PENDING = "PENDING"
     EVALUATING = "EVALUATING"
     COMPLETE = "COMPLETE"
-    FLAGGED = "FLAGGED"
+    FLAGGED = "FLAGGED"  # Pipeline failure (e.g. segmentation failed)
+    IN_REVIEW = "IN_REVIEW"  # Evaluation done; one or more answers need human review
     CANCELLED = "CANCELLED"
 
 

@@ -165,11 +165,16 @@ export function UploadPage() {
       <div>
         <h2 className="page-title flex items-center gap-2">
           <Upload className="w-6 h-6 text-accent-green" />
-          Upload Scripts
+          Upload Answer Papers
         </h2>
         <p className="text-text-secondary text-base mt-1.5">
-          Upload student answer scripts for OCR processing and AI evaluation
+          Upload student answer papers (PDF or images) for the selected exam. Each question is matched to its answer automatically.
         </p>
+        <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-text-secondary">
+          <strong className="text-text-primary">Workflow:</strong> Create an exam from a <strong>question paper</strong> on the{" "}
+          <Link to="/exams" className="text-accent-blue hover:underline">Exams</Link> page (e.g. question paper_HISTORY.pdf), then upload{" "}
+          <strong>answer papers</strong> here (e.g. answer paper_History.pdf). The system will extract text, map answers to each question, and evaluate.
+        </div>
       </div>
 
       {results.length > 0 ? (
@@ -223,7 +228,7 @@ export function UploadPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">
-                Exam *
+                Exam (from question paper) *
               </label>
               <select
                 value={examId}
@@ -239,7 +244,7 @@ export function UploadPage() {
               </select>
               {exams.length === 0 && (
                 <p className="text-xs text-accent-gold mt-1.5">
-                  No exams found — <Link to="/exams" className="underline hover:text-accent-gold/80">create one first</Link>
+                  No exams yet — <Link to="/exams" className="underline hover:text-accent-gold/80">create one from a question paper first</Link>
                 </p>
               )}
             </div>
@@ -281,7 +286,7 @@ export function UploadPage() {
               )}
             >
               <FileUp className="w-4 h-4" />
-              Upload Files
+              Upload answer paper(s)
             </button>
             <button
               type="button"
@@ -294,7 +299,7 @@ export function UploadPage() {
               )}
             >
               <Type className="w-4 h-4" />
-              Type / Paste Answer
+              Type / paste answers
             </button>
           </div>
 
@@ -349,10 +354,10 @@ export function UploadPage() {
             <p className="text-text-secondary font-medium">
               {isDragActive
                 ? "Drop files here..."
-                : "Drag & drop answer scripts, or click to browse"}
+                : "Drag & drop answer paper(s) (e.g. answer paper_History.pdf), or click to browse"}
             </p>
             <p className="text-text-muted text-xs mt-1.5">
-              Supports PDF, JPEG, PNG — up to 50 MB per file
+              PDF, JPEG, or PNG — up to 50 MB. One file per student; answers are matched to questions automatically.
             </p>
           </div>
           )}

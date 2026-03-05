@@ -13,8 +13,12 @@ import {
   XCircle,
   Trash2,
   Square,
+  Upload,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PipelineTracker } from "@/components/dashboard/PipelineTracker";
 import { uploadAPI, evaluationAPI } from "@/services/api";
@@ -23,7 +27,7 @@ import { clsx } from "clsx";
 import toast from "react-hot-toast";
 import { formatDistanceToNow } from "date-fns";
 
-const TERMINAL_STATUSES = new Set(["EVALUATED", "COMPLETE", "FAILED", "FLAGGED"]);
+const TERMINAL_STATUSES = new Set(["EVALUATED", "COMPLETE", "FAILED", "FLAGGED", "IN_REVIEW"]);
 
 export function ScriptsPage() {
   const [scripts, setScripts] = useState<UploadedScript[]>([]);
@@ -31,6 +35,8 @@ export function ScriptsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [stopScriptId, setStopScriptId] = useState<string | null>(null);
+  const [deleteUploadId, setDeleteUploadId] = useState<string | null>(null);
   const perPage = 20;
 
   const loadData = useCallback(
@@ -58,7 +64,11 @@ export function ScriptsPage() {
   useEffect(() => {
     const hasProcessing = scripts.some((s) => !TERMINAL_STATUSES.has(s.uploadStatus));
     if (!hasProcessing) return;
-    const interval = setInterval(() => loadData(true), 5000);
+    const inOcrOrSegmenting = scripts.some(
+      (s) => s.uploadStatus === "PROCESSING" || s.uploadStatus === "OCR_COMPLETE"
+    );
+    const intervalMs = inOcrOrSegmenting ? 3000 : 5000;
+    const interval = setInterval(() => loadData(true), intervalMs);
     return () => clearInterval(interval);
   }, [scripts, loadData]);
 
@@ -67,12 +77,14 @@ export function ScriptsPage() {
       case "EVALUATED":
       case "COMPLETE":
         return <BarChart3 className="w-4 h-4 text-accent-green" />;
+      case "IN_REVIEW":
+        return <AlertCircle className="w-4 h-4 text-accent-gold" />;
       case "EVALUATING":
         return <Loader2 className="w-4 h-4 animate-spin text-accent-purple" />;
       case "FAILED":
         return <XCircle className="w-4 h-4 text-accent-red" />;
       case "FLAGGED":
-        return <AlertCircle className="w-4 h-4 text-accent-gold" />;
+        return <XCircle className="w-4 h-4 text-accent-red" />;
       default:
         return <Clock className="w-4 h-4 text-accent-cyan animate-pulse" />;
     }
@@ -109,22 +121,24 @@ export function ScriptsPage() {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="w-10 h-10 animate-spin text-accent-blue mb-4" />
-          <p className="text-text-muted text-sm">Loading scripts...</p>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : scripts.length === 0 ? (
         <GlassCard>
-          <div className="text-center py-16">
-            <FileText className="w-12 h-12 text-text-muted mx-auto mb-4 opacity-50" />
-            <p className="text-text-secondary font-medium">No scripts uploaded yet</p>
-            <p className="text-text-muted text-sm mt-1">
-              Go to Upload Scripts to get started
-            </p>
-            <Link to="/upload" className="btn-primary inline-flex items-center gap-2 mt-4 text-sm">
-              Upload Now
-            </Link>
-          </div>
+          <EmptyState
+            icon={<FileText className="w-8 h-8 sm:w-10 sm:h-10 text-text-muted" />}
+            title="No scripts uploaded yet"
+            description="Upload answer booklets (PDF or images) or submit typed answers to get started."
+            action={
+              <Link to="/upload" className="btn-primary inline-flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Upload Scripts
+              </Link>
+            }
+          />
         </GlassCard>
       ) : (
         <div className="space-y-3">
@@ -166,10 +180,15 @@ export function ScriptsPage() {
                         {s.failureReason}
                       </div>
                     )}
+                    {s.uploadStatus === "IN_REVIEW" && (
+                      <p className="mt-2 text-xs text-text-muted">
+                        One or more answers are recommended for human review. Open Results to see which questions.
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1.5 flex-shrink-0">
-                    {(s.uploadStatus === "EVALUATED" || s.uploadStatus === "COMPLETE" || s.uploadStatus === "FLAGGED") && s.scriptId && (
+                    {(s.uploadStatus === "EVALUATED" || s.uploadStatus === "COMPLETE" || s.uploadStatus === "FLAGGED" || s.uploadStatus === "IN_REVIEW") && s.scriptId && (
                       <Link
                         to={`/scripts/${s.scriptId}/evaluation`}
                         className="btn-primary text-xs !px-3 !py-1.5 flex items-center gap-1.5 whitespace-nowrap"
@@ -180,17 +199,7 @@ export function ScriptsPage() {
                     )}
                     {s.uploadStatus === "EVALUATING" && s.scriptId && (
                       <button
-                        onClick={async () => {
-                          const scriptId = s.scriptId;
-                          if (!scriptId || !confirm("Stop this evaluation?")) return;
-                          try {
-                            await evaluationAPI.stopEvaluation(scriptId);
-                            toast.success("Evaluation stopped");
-                            loadData(true);
-                          } catch {
-                            toast.error("Failed to stop evaluation");
-                          }
-                        }}
+                        onClick={() => setStopScriptId(s.scriptId!)}
                         className="btn-secondary text-xs !px-3 !py-1.5 flex items-center gap-1.5 text-accent-red hover:bg-red-50"
                         title="Stop evaluation"
                       >
@@ -206,16 +215,7 @@ export function ScriptsPage() {
                       OCR Review
                     </Link>
                     <button
-                      onClick={async () => {
-                        if (!confirm("Delete this upload and all related data? This cannot be undone.")) return;
-                        try {
-                          await uploadAPI.delete(s.id);
-                          toast.success("Upload deleted");
-                          loadData(true);
-                        } catch {
-                          toast.error("Failed to delete upload");
-                        }
-                      }}
+                      onClick={() => setDeleteUploadId(s.id)}
                       className="btn-secondary text-xs !px-3 !py-1.5 flex items-center gap-1.5 text-accent-red hover:bg-red-50"
                       title="Delete upload"
                     >
@@ -251,6 +251,47 @@ export function ScriptsPage() {
           </button>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!stopScriptId}
+        onClose={() => setStopScriptId(null)}
+        onConfirm={async () => {
+          if (!stopScriptId) return;
+          try {
+            await evaluationAPI.stopEvaluation(stopScriptId);
+            toast.success("Evaluation stopped");
+            setStopScriptId(null);
+            loadData(true);
+          } catch {
+            toast.error("Failed to stop evaluation");
+          }
+        }}
+        title="Stop evaluation"
+        message="Stop this evaluation? Remaining questions will not be scored."
+        confirmLabel="Stop"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
+      <ConfirmModal
+        isOpen={!!deleteUploadId}
+        onClose={() => setDeleteUploadId(null)}
+        onConfirm={async () => {
+          if (!deleteUploadId) return;
+          try {
+            await uploadAPI.delete(deleteUploadId);
+            toast.success("Upload deleted");
+            setDeleteUploadId(null);
+            loadData(true);
+          } catch {
+            toast.error("Failed to delete upload");
+          }
+        }}
+        title="Delete upload"
+        message="Delete this upload and all related scripts and evaluations? This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }

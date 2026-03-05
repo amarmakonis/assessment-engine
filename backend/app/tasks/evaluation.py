@@ -19,6 +19,7 @@ from app.common.observability import structured_log, tasks_total
 from app.config import get_settings
 from app.domain.models.common import (
     EvaluationStatus,
+    ReviewRecommendation,
     ScriptSource,
     ScriptStatus,
 )
@@ -51,22 +52,34 @@ def prepare_script(
     quality_flags: list[str],
     trace_id: str,
 ):
-    """Create the Script document from segmentation results and fan out evaluation tasks."""
+    """Create the Script document from segmentation results and fan out evaluation tasks.
+    Ensures one script answer per exam question (full paper). Unattempted questions get
+    zero-score evaluation results so the run total is out of full paper marks.
+    """
     try:
         upload_doc = UploadedScriptRepository().find_by_id(uploaded_script_id)
         if not upload_doc:
             logger.error(f"UploadedScript {uploaded_script_id} not found")
             return
 
+        exam_id = upload_doc["examId"]
+        exam_doc = ExamRepository().find_by_id(exam_id)
+        if not exam_doc:
+            logger.error(f"Exam {exam_id} not found")
+            return
+
+        exam_questions = exam_doc.get("questions", [])
+        seg_by_q = {a["questionId"]: a for a in segmentation_result.get("answers", [])}
+
         answers = []
-        flagged_questions = []
-        for ans in segmentation_result.get("answers", []):
-            is_flagged = ans.get("answerText") is None
-            if is_flagged:
-                flagged_questions.append(ans["questionId"])
+        for q in exam_questions:
+            qid = q.get("questionId", "")
+            seg = seg_by_q.get(qid)
+            has_text = seg and seg.get("answerText") and str(seg.get("answerText", "")).strip()
+            is_flagged = not has_text
             answers.append({
-                "questionId": ans["questionId"],
-                "text": ans.get("answerText") or "",
+                "questionId": qid,
+                "text": (seg.get("answerText") or "").strip() if seg else "",
                 "isFlagged": is_flagged,
             })
 
@@ -94,13 +107,54 @@ def prepare_script(
             uploaded_script_id, {"$set": {"uploadStatus": UploadStatus.EVALUATING.value}}
         )
 
-        non_flagged = [a for a in answers if not a["isFlagged"] and a["text"].strip()]
+        qid_to_max_marks = {q.get("questionId"): float(q.get("maxMarks", 0)) for q in exam_questions}
+
+        # Insert zero-score evaluation results for unattempted (no-answer) questions
+        # so the run total is out of full paper marks.
+        eval_repo = EvaluationResultRepository()
+        for a in answers:
+            if a["isFlagged"] or not a.get("text", "").strip():
+                qid = a["questionId"]
+                max_marks = qid_to_max_marks.get(qid, 0)
+                idempotency_key = f"{run_id}:{script_id}:{qid}:{EVALUATION_VERSION}"
+                if eval_repo.find_by_idempotency_key(idempotency_key):
+                    continue
+                no_attempt_doc = {
+                    "runId": run_id,
+                    "scriptId": script_id,
+                    "institutionId": script_doc.get("institutionId"),
+                    "createdBy": script_doc.get("createdBy"),
+                    "questionId": qid,
+                    "evaluationVersion": EVALUATION_VERSION,
+                    "idempotencyKey": idempotency_key,
+                    "groundedRubric": None,
+                    "criterionScores": [],
+                    "consistencyAudit": None,
+                    "feedback": None,
+                    "explainability": None,
+                    "totalScore": 0.0,
+                    "maxPossibleScore": max_marks,
+                    "percentageScore": 0.0,
+                    "reviewRecommendation": ReviewRecommendation.AUTO_APPROVED.value,
+                    "reviewerOverride": None,
+                    "status": EvaluationStatus.COMPLETE.value,
+                    "latencyMs": 0,
+                    "tokensUsed": {"prompt": 0, "completion": 0, "total": 0},
+                    "createdAt": datetime.now(timezone.utc),
+                }
+                eval_repo.insert_one(no_attempt_doc)
+                logger.info("Inserted no-attempt result for question %s (script %s)", qid, script_id)
+
+        non_flagged = [a for a in answers if not a["isFlagged"] and a.get("text", "").strip()]
         if non_flagged:
             task_group = group(
                 evaluate_question.s(script_id, a["questionId"], run_id, trace_id)
                 for a in non_flagged
             )
             task_group.apply_async()
+        else:
+            # All questions unattempted; we already inserted no-attempt results — mark script complete
+            _check_script_completion(script_id)
 
         tasks_total.labels(queue="evaluation", status="success").inc()
 
@@ -115,9 +169,9 @@ def prepare_script(
     queue="evaluation",
     acks_late=True,
     reject_on_worker_lost=True,
-    max_retries=3,
-    soft_time_limit=300,
-    time_limit=360,
+    max_retries=2,
+    soft_time_limit=180,
+    time_limit=210,
 )
 def evaluate_question(
     self,
@@ -189,12 +243,16 @@ def evaluate_question(
             for c in question_def.get("rubric", [])
         ]
 
+        settings = get_settings()
+        eval_max_tokens = getattr(settings, "OPENAI_EVALUATION_MAX_TOKENS", 2048)
+
         # ── Agent 1: Rubric Grounding ─────────────────────
         rubric_agent = RubricGroundingAgent()
         grounded_rubric, rubric_meta = rubric_agent.execute(
             trace_id=trace_id,
             question_text=question_text,
             rubric_criteria=rubric_criteria,
+            max_tokens=eval_max_tokens,
         )
         total_prompt_tokens += rubric_meta["prompt_tokens"]
         total_completion_tokens += rubric_meta["completion_tokens"]
@@ -230,6 +288,7 @@ def evaluate_question(
             rubric=grounded_rubric.model_dump(by_alias=True),
             criterion_scores=[s.model_dump(by_alias=True) for s in criterion_scores],
             question_text=question_text,
+            max_tokens=eval_max_tokens,
         )
         total_prompt_tokens += consistency_meta["prompt_tokens"]
         total_completion_tokens += consistency_meta["completion_tokens"]
@@ -262,6 +321,7 @@ def evaluate_question(
             final_scores=[fs.model_dump(by_alias=True) for fs in consistency_audit.final_scores],
             total_score=total_score,
             max_score=max_score,
+            max_tokens=eval_max_tokens,
         )
         total_prompt_tokens += feedback_meta["prompt_tokens"]
         total_completion_tokens += feedback_meta["completion_tokens"]
@@ -278,6 +338,7 @@ def evaluate_question(
             feedback=feedback.model_dump(by_alias=True),
             total_score=total_score,
             max_score=max_score,
+            max_tokens=eval_max_tokens,
         )
         total_prompt_tokens += explain_meta["prompt_tokens"]
         total_completion_tokens += explain_meta["completion_tokens"]
@@ -341,30 +402,26 @@ def evaluate_question(
 
 
 def _check_script_completion(script_id: str) -> None:
-    """Mark script COMPLETE if all non-flagged questions have evaluation results."""
+    """Mark script COMPLETE when every question has an evaluation result (full paper)."""
     script_doc = ScriptRepository().find_by_id(script_id)
     if not script_doc:
         return
 
-    non_flagged_ids = {
-        a["questionId"]
-        for a in script_doc["answers"]
-        if not a.get("isFlagged") and a.get("text", "").strip()
-    }
-
+    answer_ids = {a["questionId"] for a in script_doc.get("answers", [])}
     eval_repo = EvaluationResultRepository()
     completed_evals = eval_repo.find_by_script(script_id)
     completed_ids = {e["questionId"] for e in completed_evals if e["status"] == "COMPLETE"}
 
-    if non_flagged_ids <= completed_ids:
+    if answer_ids and answer_ids <= completed_ids:
         has_flagged = any(a.get("isFlagged") for a in script_doc["answers"])
-        status = ScriptStatus.FLAGGED if has_flagged else ScriptStatus.COMPLETE
+        # FLAGGED is reserved for pipeline failures (e.g. segmentation). Use IN_REVIEW when evaluation completed but some answers need human review.
+        status = ScriptStatus.IN_REVIEW if has_flagged else ScriptStatus.COMPLETE
         ScriptRepository().update_one(script_id, {"$set": {"status": status.value}})
 
         uploaded_script_id = script_doc.get("uploadedScriptId")
         if uploaded_script_id:
             from app.domain.models.common import UploadStatus
-            final_upload_status = UploadStatus.FLAGGED if has_flagged else UploadStatus.EVALUATED
+            final_upload_status = UploadStatus.IN_REVIEW if has_flagged else UploadStatus.EVALUATED
             UploadedScriptRepository().update_one(
                 uploaded_script_id, {"$set": {"uploadStatus": final_upload_status.value}}
             )

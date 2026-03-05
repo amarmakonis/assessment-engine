@@ -13,7 +13,8 @@ import { KPICard } from "@/components/ui/KPICard";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { SkeletonKPI, SkeletonActivityRow } from "@/components/ui/Skeleton";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { dashboardAPI } from "@/services/api";
 import toast from "react-hot-toast";
 import type { DashboardKPIs, ActivityItem } from "@/types";
@@ -26,6 +27,8 @@ export function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dismissItem, setDismissItem] = useState<ActivityItem | null>(null);
+  const [showClearAllModal, setShowClearAllModal] = useState(false);
 
   const fetchData = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -60,7 +63,13 @@ export function DashboardPage() {
   }, []);
 
   async function handleDismissActivity(item: ActivityItem) {
-    if (!confirm("Remove this from recent activity? Your data will be kept; it will only be hidden from this list.")) return;
+    setDismissItem(item);
+  }
+
+  async function confirmDismissItem() {
+    if (!dismissItem) return;
+    const item = dismissItem;
+    setDismissItem(null);
     try {
       await dashboardAPI.dismissActivity(item.type, item.id);
       toast.success("Removed from recent activity");
@@ -71,9 +80,13 @@ export function DashboardPage() {
     }
   }
 
-  async function handleClearAllActivity() {
+  function handleClearAllClick() {
     if (activity.length === 0) return;
-    if (!confirm(`Remove all ${activity.length} items from recent activity? Your data will be kept; they will only be hidden from this list.`)) return;
+    setShowClearAllModal(true);
+  }
+
+  async function confirmClearAll() {
+    setShowClearAllModal(false);
     try {
       await dashboardAPI.clearActivity();
       toast.success("Recent activity cleared");
@@ -83,14 +96,6 @@ export function DashboardPage() {
       toast.error("Failed to clear list");
       fetchData(true);
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
   }
 
   return (
@@ -112,42 +117,52 @@ export function DashboardPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <KPICard
-          label="Uploads Today"
-          value={kpis?.totalUploadsToday ?? 0}
-          icon={<Upload className="w-6 h-6" />}
-          accentColor="text-accent-cyan"
-        />
-        <KPICard
-          label="Total Scripts"
-          value={kpis?.totalScripts ?? 0}
-          icon={<FileText className="w-6 h-6" />}
-          accentColor="text-accent-blue"
-        />
-        <KPICard
-          label="Average Score"
-          value={`${kpis?.averageScore ?? 0}%`}
-          icon={<BarChart3 className="w-6 h-6" />}
-          accentColor="text-accent-green"
-        />
-        <KPICard
-          label="Review Queue"
-          value={kpis?.reviewQueueSize ?? 0}
-          icon={<AlertTriangle className="w-6 h-6" />}
-          accentColor="text-accent-gold"
-        />
-        <KPICard
-          label="Failed Scripts"
-          value={kpis?.failedScripts ?? 0}
-          icon={<AlertTriangle className="w-6 h-6" />}
-          accentColor="text-accent-red"
-        />
-        <KPICard
-          label="Processing Now"
-          value={kpis?.processingNow ?? 0}
-          icon={<Loader2 className="w-6 h-6" />}
-          accentColor="text-accent-purple"
-        />
+        {loading ? (
+          <>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <SkeletonKPI key={i} />
+            ))}
+          </>
+        ) : (
+          <>
+            <KPICard
+              label="Uploads Today"
+              value={kpis?.totalUploadsToday ?? 0}
+              icon={<Upload className="w-6 h-6" />}
+              accentColor="text-accent-cyan"
+            />
+            <KPICard
+              label="Total Scripts"
+              value={kpis?.totalScripts ?? 0}
+              icon={<FileText className="w-6 h-6" />}
+              accentColor="text-accent-blue"
+            />
+            <KPICard
+              label="Average Score"
+              value={`${kpis?.averageScore ?? 0}%`}
+              icon={<BarChart3 className="w-6 h-6" />}
+              accentColor="text-accent-green"
+            />
+            <KPICard
+              label="Review Queue"
+              value={kpis?.reviewQueueSize ?? 0}
+              icon={<AlertTriangle className="w-6 h-6" />}
+              accentColor="text-accent-gold"
+            />
+            <KPICard
+              label="Failed Scripts"
+              value={kpis?.failedScripts ?? 0}
+              icon={<AlertTriangle className="w-6 h-6" />}
+              accentColor="text-accent-red"
+            />
+            <KPICard
+              label="Processing Now"
+              value={kpis?.processingNow ?? 0}
+              icon={<Loader2 className="w-6 h-6" />}
+              accentColor="text-accent-purple"
+            />
+          </>
+        )}
       </div>
 
       <GlassCard>
@@ -159,9 +174,9 @@ export function DashboardPage() {
           {activity.length > 0 && (
             <button
               type="button"
-              onClick={handleClearAllActivity}
+              onClick={handleClearAllClick}
               className="text-sm text-text-muted hover:text-accent-red transition-colors flex items-center gap-1.5"
-              title="Clear all recent activity"
+              title="Clear all from recent activity (data is kept)"
             >
               <Trash2 className="w-4 h-4" />
               Clear all
@@ -169,7 +184,14 @@ export function DashboardPage() {
           )}
         </div>
         <div className="space-y-1 max-h-96 overflow-y-auto">
-          {activity.map((item) => (
+          {loading ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <SkeletonActivityRow key={i} />
+              ))}
+            </>
+          ) : (
+          activity.map((item) => (
             <div
               key={`${item.type}-${item.id}`}
               className={`
@@ -203,12 +225,33 @@ export function DashboardPage() {
                 onClick={() => handleDismissActivity(item)}
                 className="p-1.5 rounded text-text-muted hover:text-accent-red hover:bg-red-50 transition-colors"
                 title="Remove from recent activity (data is kept)"
+                aria-label="Remove from recent activity"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-          ))}
-          {activity.length === 0 && (
+          )))}
+          <ConfirmModal
+            isOpen={showClearAllModal}
+            onClose={() => setShowClearAllModal(false)}
+            onConfirm={confirmClearAll}
+            title="Clear recent activity"
+            message={`Remove all ${activity.length} items from this list? Your data is kept; they will only be hidden from recent activity.`}
+            confirmLabel="Clear all"
+            cancelLabel="Cancel"
+            variant="default"
+          />
+          <ConfirmModal
+            isOpen={!!dismissItem}
+            onClose={() => setDismissItem(null)}
+            onConfirm={confirmDismissItem}
+            title="Remove from recent activity"
+            message="This will only hide the item from the list. Your upload and evaluation data will be kept."
+            confirmLabel="Remove"
+            cancelLabel="Cancel"
+            variant="default"
+          />
+          {!loading && activity.length === 0 && (
             <p className="text-center text-text-muted py-8 text-[15px]">
               No recent activity
             </p>

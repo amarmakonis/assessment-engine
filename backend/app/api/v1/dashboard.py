@@ -4,11 +4,13 @@ Dashboard & analytics endpoints — KPIs, queue depth, activity feed.
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
-from flask import request
+from flask import request, Response
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
@@ -241,3 +243,45 @@ class ReviewQueueView(MethodView):
             ],
             "total": len(evals),
         }
+
+
+@dashboard_bp.route("/review-queue/export")
+class ReviewQueueExportView(MethodView):
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "REVIEWER"])
+    def get(self):
+        """Export review queue as CSV."""
+        institution_id = get_current_institution_id()
+        query = {
+            "institutionId": institution_id,
+            "reviewRecommendation": {"$in": ["NEEDS_REVIEW", "MUST_REVIEW"]},
+            "status": "COMPLETE",
+        }
+        if not can_see_all_institution_data():
+            query["createdBy"] = get_current_user_id()
+        evals = EvaluationResultRepository().find_many(
+            query,
+            sort=[("createdAt", -1)],
+            limit=2000,
+        )
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow([
+            "id", "scriptId", "questionId", "totalScore", "maxScore",
+            "reviewRecommendation", "reviewReason", "createdAt",
+        ])
+        for e in evals:
+            w.writerow([
+                str(e["_id"]),
+                e.get("scriptId", ""),
+                e.get("questionId", ""),
+                e.get("totalScore", ""),
+                e.get("maxPossibleScore", ""),
+                e.get("reviewRecommendation", ""),
+                (e.get("explainability") or {}).get("reviewReason", ""),
+                _fmt_dt(e.get("createdAt")),
+            ])
+        return Response(
+            out.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=review-queue.csv"},
+        )
