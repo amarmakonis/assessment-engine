@@ -16,6 +16,8 @@ import {
   Lightbulb,
   Target,
   TrendingUp,
+  Trash2,
+  Square,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -136,6 +138,24 @@ export function EvaluationPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          {data.status === "EVALUATING" && (
+            <button
+              onClick={async () => {
+                if (!scriptId || !confirm("Stop this evaluation?")) return;
+                try {
+                  await evaluationAPI.stopEvaluation(scriptId);
+                  toast.success("Evaluation stopped");
+                  loadData();
+                } catch {
+                  toast.error("Failed to stop evaluation");
+                }
+              }}
+              className="btn-secondary text-sm flex items-center gap-2 text-accent-red hover:bg-red-50"
+            >
+              <Square className="w-4 h-4" />
+              Stop
+            </button>
+          )}
           <button
             onClick={handleReEvaluate}
             disabled={reEvaluating}
@@ -143,6 +163,22 @@ export function EvaluationPage() {
           >
             <RefreshCw className={clsx("w-4 h-4", reEvaluating && "animate-spin")} />
             Re-evaluate
+          </button>
+          <button
+            onClick={async () => {
+              if (!scriptId || !confirm("Delete this script and all evaluations? This cannot be undone.")) return;
+              try {
+                await evaluationAPI.deleteScript(scriptId);
+                toast.success("Script deleted");
+                navigate("/evaluations");
+              } catch {
+                toast.error("Failed to delete script");
+              }
+            }}
+            className="btn-secondary text-sm flex items-center gap-2 text-accent-red hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
           </button>
           <div className="text-right">
             <p className={clsx(
@@ -188,6 +224,16 @@ export function EvaluationPage() {
             overrideNote={overrideNote}
             setOverrideNote={setOverrideNote}
             submitOverride={submitOverride}
+            onDelete={async (id) => {
+              if (!confirm("Delete this evaluation? This cannot be undone.")) return;
+              try {
+                await evaluationAPI.deleteResult(id);
+                toast.success("Evaluation deleted");
+                loadData();
+              } catch {
+                toast.error("Failed to delete evaluation");
+              }
+            }}
           />
         ))}
       </div>
@@ -206,6 +252,7 @@ function QuestionAccordion({
   overrideNote,
   setOverrideNote,
   submitOverride,
+  onDelete,
 }: {
   evaluation: EvaluationResult;
   isExpanded: boolean;
@@ -217,6 +264,7 @@ function QuestionAccordion({
   overrideNote: string;
   setOverrideNote: (v: string) => void;
   submitOverride: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
 }) {
   const pct = ev.maxPossibleScore > 0 ? (ev.totalScore / ev.maxPossibleScore) * 100 : 0;
 
@@ -255,7 +303,16 @@ function QuestionAccordion({
         <div className="w-20 h-2.5 bg-surface rounded-full overflow-hidden mr-2">
           <div className={clsx("h-full rounded-full", qColors.bg)} style={{ width: `${pct}%` }} />
         </div>
-        {isExpanded ? <ChevronUp className="w-5 h-5 text-text-muted" /> : <ChevronDown className="w-5 h-5 text-text-muted" />}
+            {isExpanded ? <ChevronUp className="w-5 h-5 text-text-muted" /> : <ChevronDown className="w-5 h-5 text-text-muted" />}
+            {onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
+                className="p-1.5 text-text-muted hover:text-accent-red rounded"
+                title="Delete this evaluation"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
       </button>
 
       {isExpanded && (

@@ -11,7 +11,12 @@ from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
-from app.api.middleware.auth import get_current_institution_id, get_current_user_id, jwt_required
+from app.api.middleware.auth import (
+    can_see_all_institution_data,
+    get_current_institution_id,
+    get_current_user_id,
+    jwt_required,
+)
 from app.api.v1._serializers import _fmt_dt
 from app.common.exceptions import NotFoundError, ValidationError
 from app.domain.models.common import EvaluationStatus
@@ -35,6 +40,8 @@ class ScriptEvaluationView(MethodView):
         script = ScriptRepository().find_by_id(script_id, institution_id)
         if not script:
             raise NotFoundError("Script", script_id)
+        if not can_see_all_institution_data() and script.get("createdBy") != get_current_user_id():
+            raise NotFoundError("Script", script_id)
 
         evals = EvaluationResultRepository().find_by_script(script_id)
 
@@ -53,14 +60,58 @@ class ScriptEvaluationView(MethodView):
             "evaluations": [_serialize_eval(e) for e in evals],
         }
 
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def delete(self, script_id: str):
+        """Delete a script and its evaluations."""
+        institution_id = get_current_institution_id()
+        script = ScriptRepository().find_by_id(script_id, institution_id)
+        if not script:
+            raise NotFoundError("Script", script_id)
+        if not can_see_all_institution_data() and script.get("createdBy") != get_current_user_id():
+            raise NotFoundError("Script", script_id)
+        evals = EvaluationResultRepository().find_by_script(script_id)
+        for e in evals:
+            inst_id = e.get("institutionId")
+            if inst_id is None:
+                inst_id = script.get("institutionId")
+            EvaluationResultRepository().delete_one(str(e["_id"]), inst_id)
+        ScriptRepository().delete_one(script_id, institution_id)
+        return {"message": "Script deleted", "scriptId": script_id}
+
+
+def _eval_belongs_to_institution(doc: dict, institution_id: str) -> bool:
+    """Check if evaluation belongs to institution (handles legacy records without institutionId)."""
+    if doc.get("institutionId") == institution_id:
+        return True
+    if doc.get("institutionId") is not None:
+        return False
+    script = ScriptRepository().find_by_id(doc.get("scriptId", ""))
+    return script and script.get("institutionId") == institution_id
+
+
+def _user_can_access_eval(doc: dict, institution_id: str) -> bool:
+    """Check if current user can access this evaluation (institution + professor isolation)."""
+    if not _eval_belongs_to_institution(doc, institution_id):
+        return False
+    if can_see_all_institution_data():
+        return True
+    created_by = doc.get("createdBy")
+    if created_by is None:
+        script = ScriptRepository().find_by_id(doc.get("scriptId", ""))
+        created_by = script.get("createdBy") if script else None
+    return created_by == get_current_user_id()
+
 
 @evaluation_bp.route("/results/<result_id>")
 class EvaluationResultDetailView(MethodView):
     @jwt_required
     def get(self, result_id: str):
         """Get a single evaluation result with full detail."""
+        institution_id = get_current_institution_id()
         doc = EvaluationResultRepository().find_by_id(result_id)
         if not doc:
+            raise NotFoundError("EvaluationResult", result_id)
+        if not _user_can_access_eval(doc, institution_id):
             raise NotFoundError("EvaluationResult", result_id)
         return _serialize_eval(doc)
 
@@ -77,8 +128,11 @@ class ReviewerOverrideView(MethodView):
         if override_score is None:
             raise ValidationError("overrideScore is required")
 
+        institution_id = get_current_institution_id()
         doc = EvaluationResultRepository().find_by_id(result_id)
         if not doc:
+            raise NotFoundError("EvaluationResult", result_id)
+        if not _user_can_access_eval(doc, institution_id):
             raise NotFoundError("EvaluationResult", result_id)
 
         if override_score < 0 or override_score > doc.get("maxPossibleScore", 0):
@@ -107,12 +161,28 @@ class ReviewerOverrideView(MethodView):
 
         return {"message": "Override applied", "resultId": result_id}
 
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "REVIEWER", "EXAMINER"])
+    def delete(self, result_id: str):
+        """Delete an evaluation result."""
+        institution_id = get_current_institution_id()
+        doc = EvaluationResultRepository().find_by_id(result_id)
+        if not doc:
+            raise NotFoundError("EvaluationResult", result_id)
+        if not _user_can_access_eval(doc, institution_id):
+            raise NotFoundError("EvaluationResult", result_id)
+        inst_id = doc.get("institutionId")
+        if inst_id is None:
+            script = ScriptRepository().find_by_id(doc.get("scriptId", ""))
+            inst_id = script.get("institutionId") if script else None
+        EvaluationResultRepository().delete_one(result_id, inst_id)
+        return {"message": "Evaluation deleted", "resultId": result_id}
+
 
 @evaluation_bp.route("/list")
 class EvaluationListView(MethodView):
     @jwt_required
     def get(self):
-        """List all evaluated scripts with summary scores."""
+        """List all evaluated scripts with summary scores. Professors see only their own."""
         institution_id = get_current_institution_id()
         page = int(request.args.get("page", 1))
         per_page = min(int(request.args.get("perPage", 20)), 100)
@@ -121,6 +191,8 @@ class EvaluationListView(MethodView):
         query: dict = {"institutionId": institution_id}
         if filter_status:
             query["status"] = filter_status
+        if not can_see_all_institution_data():
+            query["createdBy"] = get_current_user_id()
 
         script_repo = ScriptRepository()
         eval_repo = EvaluationResultRepository()
@@ -161,6 +233,29 @@ class EvaluationListView(MethodView):
         return {"items": items, "total": total, "page": page, "perPage": per_page}
 
 
+@evaluation_bp.route("/scripts/<script_id>/stop")
+class StopEvaluationView(MethodView):
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def post(self, script_id: str):
+        """Stop/cancel in-progress evaluation for a script."""
+        from app.domain.models.common import ScriptStatus
+
+        institution_id = get_current_institution_id()
+        script = ScriptRepository().find_by_id(script_id, institution_id)
+        if not script:
+            raise NotFoundError("Script", script_id)
+        if not can_see_all_institution_data() and script.get("createdBy") != get_current_user_id():
+            raise NotFoundError("Script", script_id)
+        if script.get("status") != ScriptStatus.EVALUATING.value:
+            raise ValidationError(
+                f"Cannot stop: script is not evaluating (status={script.get('status')})"
+            )
+        ScriptRepository().update_one(
+            script_id, {"$set": {"status": ScriptStatus.CANCELLED.value}}, institution_id
+        )
+        return {"message": "Evaluation stopped", "scriptId": script_id}
+
+
 @evaluation_bp.route("/scripts/<script_id>/re-evaluate")
 class ReEvaluateView(MethodView):
     @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
@@ -173,6 +268,8 @@ class ReEvaluateView(MethodView):
         institution_id = get_current_institution_id()
         script = ScriptRepository().find_by_id(script_id, institution_id)
         if not script:
+            raise NotFoundError("Script", script_id)
+        if not can_see_all_institution_data() and script.get("createdBy") != get_current_user_id():
             raise NotFoundError("Script", script_id)
 
         run_id = uuid.uuid4().hex

@@ -8,6 +8,7 @@ import {
   XCircle,
   Loader2,
   ArrowRight,
+  Type,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -29,18 +30,41 @@ interface ExamOption {
   totalMarks: number;
 }
 
+interface ExamQuestion {
+  questionId: string;
+  questionText: string;
+  maxMarks: number;
+}
+
+type UploadMode = "file" | "typed";
+
 export function UploadPage() {
   const [exams, setExams] = useState<ExamOption[]>([]);
   const [examId, setExamId] = useState("");
+  const [examQuestions, setExamQuestions] = useState<ExamQuestion[]>([]);
   const [studentName, setStudentName] = useState("");
   const [studentRoll, setStudentRoll] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [typedAnswers, setTypedAnswers] = useState<Record<string, string>>({});
+  const [uploadMode, setUploadMode] = useState<UploadMode>("file");
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[]>([]);
 
   useEffect(() => {
     examAPI.list().then(({ data }) => setExams(data.items)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!examId) {
+      setExamQuestions([]);
+      setTypedAnswers({});
+      return;
+    }
+    examAPI
+      .get(examId)
+      .then(({ data }) => setExamQuestions(data.questions || []))
+      .catch(() => setExamQuestions([]));
+  }, [examId]);
 
   const onDrop = useCallback((accepted: File[]) => {
     setFiles((prev) => [...prev, ...accepted]);
@@ -62,39 +86,79 @@ export function UploadPage() {
       toast.error("Please select an exam first");
       return;
     }
-    if (files.length === 0) {
-      toast.error("Please select files to upload");
-      return;
-    }
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("examId", examId);
-    formData.append("studentName", studentName);
-    formData.append("studentRollNo", studentRoll);
-    files.forEach((f) => formData.append("files", f));
+    if (uploadMode === "file") {
+      if (files.length === 0) {
+        toast.error("Please select files to upload");
+        return;
+      }
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("examId", examId);
+      formData.append("studentName", studentName);
+      formData.append("studentRollNo", studentRoll);
+      files.forEach((f) => formData.append("files", f));
 
-    try {
-      const { data } = await uploadAPI.upload(formData);
-      setResults(data.results);
-      const accepted = data.results.filter((r) => r.status === "ACCEPTED").length;
-      toast.success(`${accepted}/${data.totalFiles} files uploaded successfully`);
-      setFiles([]);
-    } catch {
-      toast.error("Upload failed");
-    } finally {
-      setUploading(false);
+      try {
+        const { data } = await uploadAPI.upload(formData);
+        setResults(data.results);
+        const accepted = data.results.filter((r) => r.status === "ACCEPTED").length;
+        toast.success(`${accepted}/${data.totalFiles} files uploaded successfully`);
+        setFiles([]);
+      } catch {
+        toast.error("Upload failed");
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      const answers = examQuestions.map((q) => ({
+        questionId: q.questionId,
+        answerText: typedAnswers[q.questionId] || "",
+      }));
+      const hasAnyAnswer = answers.some((a) => a.answerText.trim());
+      if (!hasAnyAnswer) {
+        toast.error("Please type or paste at least one answer");
+        return;
+      }
+      setUploading(true);
+      try {
+        const { data } = await uploadAPI.uploadTyped({
+          examId,
+          studentName,
+          studentRollNo: studentRoll,
+          answers,
+        });
+        setResults([
+          {
+            filename: "typed-answer.txt",
+            uploadedScriptId: data.uploadedScriptId,
+            status: "ACCEPTED",
+          },
+        ]);
+        toast.success(`Typed answer submitted. Evaluating ${data.evaluatingCount} question(s)...`);
+        setTypedAnswers({});
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { error?: { message?: string } } } };
+        toast.error(err.response?.data?.error?.message || "Submit failed");
+      } finally {
+        setUploading(false);
+      }
     }
   }
 
   function resetAll() {
     setResults([]);
     setFiles([]);
+    setTypedAnswers({});
     setStudentName("");
     setStudentRoll("");
   }
 
   const acceptedCount = results.filter((r) => r.status === "ACCEPTED").length;
+  const canSubmitTyped =
+    uploadMode === "typed" &&
+    examQuestions.length > 0 &&
+    examQuestions.some((q) => (typedAnswers[q.questionId] || "").trim());
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -205,6 +269,67 @@ export function UploadPage() {
             </div>
           </div>
 
+          <div className="flex gap-2 mb-6">
+            <button
+              type="button"
+              onClick={() => setUploadMode("file")}
+              className={clsx(
+                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors",
+                uploadMode === "file"
+                  ? "bg-accent-blue text-white"
+                  : "bg-surface border border-border text-text-secondary hover:border-accent-blue/40"
+              )}
+            >
+              <FileUp className="w-4 h-4" />
+              Upload Files
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadMode("typed")}
+              className={clsx(
+                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors",
+                uploadMode === "typed"
+                  ? "bg-accent-blue text-white"
+                  : "bg-surface border border-border text-text-secondary hover:border-accent-blue/40"
+              )}
+            >
+              <Type className="w-4 h-4" />
+              Type / Paste Answer
+            </button>
+          </div>
+
+          {uploadMode === "typed" ? (
+            <div className="space-y-4 mb-6">
+              {examQuestions.length === 0 && examId ? (
+                <p className="text-sm text-text-muted">Loading questions...</p>
+              ) : examQuestions.length === 0 ? (
+                <p className="text-sm text-accent-gold">
+                  Select an exam to type or paste answers
+                </p>
+              ) : (
+                examQuestions.map((q) => (
+                  <div key={q.questionId}>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      {q.questionId} — {q.questionText.slice(0, 60)}
+                      {q.questionText.length > 60 ? "..." : ""} ({q.maxMarks} marks)
+                    </label>
+                    <textarea
+                      value={typedAnswers[q.questionId] || ""}
+                      onChange={(e) =>
+                        setTypedAnswers((prev) => ({
+                          ...prev,
+                          [q.questionId]: e.target.value,
+                        }))
+                      }
+                      className="input-field min-h-[120px] resize-y font-mono text-sm"
+                      placeholder="Type or paste the student's answer here..."
+                      rows={4}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
           <div
             {...getRootProps()}
             className={clsx(
@@ -230,8 +355,9 @@ export function UploadPage() {
               Supports PDF, JPEG, PNG — up to 50 MB per file
             </p>
           </div>
+          )}
 
-          {files.length > 0 && (
+          {uploadMode === "file" && files.length > 0 && (
             <div className="mt-4 space-y-2">
               {files.map((f, i) => (
                 <div
@@ -256,14 +382,21 @@ export function UploadPage() {
 
           <button
             onClick={handleUpload}
-            disabled={uploading || files.length === 0 || !examId}
+            disabled={
+              uploading ||
+              !examId ||
+              (uploadMode === "file" && files.length === 0) ||
+              (uploadMode === "typed" && !canSubmitTyped)
+            }
             className="btn-primary w-full mt-6"
           >
             {uploading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Uploading & Processing...
+                {uploadMode === "typed" ? "Submitting & Evaluating..." : "Uploading & Processing..."}
               </span>
+            ) : uploadMode === "typed" ? (
+              "Submit Typed Answer"
             ) : (
               `Upload ${files.length} file${files.length !== 1 ? "s" : ""}`
             )}

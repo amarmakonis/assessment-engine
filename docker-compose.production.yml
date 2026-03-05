@@ -27,7 +27,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A celery_app:celery worker -Q ocr,evaluation,default -l info
+    # Higher concurrency: more OCR pages and evaluation tasks run in parallel (tune to EC2 CPU/RAM)
+    command: celery -A celery_app:celery worker -Q ocr,evaluation,default -l info --concurrency=6
     restart: unless-stopped
     env_file: .env
     environment:

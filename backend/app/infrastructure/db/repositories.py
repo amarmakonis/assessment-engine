@@ -66,6 +66,13 @@ class BaseRepository:
     def find_one(self, query: dict) -> dict | None:
         return self.collection.find_one(query)
 
+    def delete_one(self, doc_id: str, institution_id: str | None = None) -> bool:
+        query: dict[str, Any] = {"_id": ObjectId(doc_id)}
+        if institution_id:
+            query["institutionId"] = institution_id
+        result = self.collection.delete_one(query)
+        return result.deleted_count > 0
+
 
 class UploadedScriptRepository(BaseRepository):
     collection_name = "uploaded_scripts"

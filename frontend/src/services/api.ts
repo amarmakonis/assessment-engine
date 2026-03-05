@@ -19,6 +19,10 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // For FormData, remove Content-Type so browser sets multipart/form-data with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
   return config;
 });
 
@@ -68,12 +72,26 @@ export const uploadAPI = {
       formData,
       { headers: { "Content-Type": "multipart/form-data" } }
     ),
+  uploadTyped: (data: {
+    examId: string;
+    studentName?: string;
+    studentRollNo?: string;
+    answers: { questionId: string; answerText: string }[];
+  }) =>
+    api.post<{
+      message: string;
+      uploadedScriptId: string;
+      scriptId: string;
+      questionCount: number;
+      evaluatingCount: number;
+    }>("/uploads/typed", data),
   list: (params: { examId?: string; page?: number; perPage?: number }) =>
     api.get<{ items: UploadedScript[]; total: number; page: number; perPage: number }>(
       "/uploads/",
       { params }
     ),
   get: (scriptId: string) => api.get<UploadedScript>(`/uploads/${scriptId}`),
+  delete: (uploadedScriptId: string) => api.delete(`/uploads/${uploadedScriptId}`),
 };
 
 export const ocrAPI = {
@@ -89,6 +107,8 @@ export const ocrAPI = {
     ),
   reSegment: (scriptId: string) =>
     api.post(`/ocr/scripts/${scriptId}/re-segment`),
+  testOCR: (formData: FormData) =>
+    api.post<{ text: string }>("/ocr/test", formData),
 };
 
 export const evaluationAPI = {
@@ -119,6 +139,10 @@ export const evaluationAPI = {
     api.post(`/evaluation/results/${resultId}/override`, { overrideScore, note }),
   reEvaluate: (scriptId: string) =>
     api.post(`/evaluation/scripts/${scriptId}/re-evaluate`),
+  deleteResult: (resultId: string) =>
+    api.delete(`/evaluation/results/${resultId}/override`),
+  deleteScript: (scriptId: string) => api.delete(`/evaluation/scripts/${scriptId}`),
+  stopEvaluation: (scriptId: string) => api.post(`/evaluation/scripts/${scriptId}/stop`),
 };
 
 export const examAPI = {
@@ -138,6 +162,7 @@ export const examAPI = {
       total: number;
     }>("/exams/", { params }),
   get: (examId: string) => api.get<any>(`/exams/${examId}`),
+  delete: (examId: string) => api.delete(`/exams/${examId}`),
 };
 
 export const dashboardAPI = {

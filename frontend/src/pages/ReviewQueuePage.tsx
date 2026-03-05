@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ClipboardCheck, ExternalLink } from "lucide-react";
+import { ClipboardCheck, ExternalLink, Trash2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { dashboardAPI } from "@/services/api";
+import { dashboardAPI, evaluationAPI } from "@/services/api";
 import { formatDistanceToNow } from "date-fns";
 
 interface ReviewItem {
@@ -22,12 +22,26 @@ export function ReviewQueuePage() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     dashboardAPI
       .reviewQueue()
       .then(({ data }) => setItems(data.items))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this evaluation? This cannot be undone.")) return;
+    try {
+      await evaluationAPI.deleteResult(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      /* toast handled by caller if needed */
+    }
+  }
 
   if (loading) {
     return (
@@ -83,13 +97,22 @@ export function ReviewQueuePage() {
                     {item.totalScore}/{item.maxScore}
                   </p>
                 </div>
-                <Link
-                  to={`/scripts/${item.scriptId}/evaluation`}
-                  className="btn-primary text-xs !px-3 !py-1.5 flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Review
-                </Link>
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    to={`/scripts/${item.scriptId}/evaluation`}
+                    className="btn-primary text-xs !px-3 !py-1.5 flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Review
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="btn-secondary text-xs !px-2.5 !py-1.5 text-accent-red hover:bg-red-50 hover:border-red-200"
+                    title="Delete evaluation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </GlassCard>
           ))}

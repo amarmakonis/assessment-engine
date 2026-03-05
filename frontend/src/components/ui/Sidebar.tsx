@@ -11,6 +11,7 @@ import {
   BookOpen,
   Menu,
   X,
+  Scan,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: "/exams", icon: BookOpen, label: "Exams" },
   { to: "/upload", icon: Upload, label: "Upload Scripts" },
   { to: "/scripts", icon: FileText, label: "Scripts" },
+  { to: "/ocr-test", icon: Scan, label: "OCR Testing" },
   { to: "/evaluations", icon: Brain, label: "Evaluations" },
   { to: "/review", icon: ClipboardCheck, label: "Review Queue" },
 ];

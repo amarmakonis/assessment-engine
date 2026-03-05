@@ -1,5 +1,5 @@
 """
-File upload endpoints — ingestion, batch upload, status tracking.
+File upload endpoints — ingestion, batch upload, status tracking, typed answers.
 """
 
 from __future__ import annotations
@@ -13,12 +13,25 @@ from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint
 
-from app.api.middleware.auth import get_current_institution_id, get_current_user_id, jwt_required
+from app.api.middleware.auth import (
+    can_see_all_institution_data,
+    get_current_institution_id,
+    get_current_user_id,
+    jwt_required,
+)
 from app.api.v1._serializers import _fmt_dt
-from app.common.exceptions import ValidationError
+from app.common.exceptions import NotFoundError, ValidationError
 from app.config import get_settings
-from app.infrastructure.db.repositories import UploadedScriptRepository
+from app.domain.models.common import ScriptSource, ScriptStatus
+from app.infrastructure.db.repositories import (
+    EvaluationResultRepository,
+    ExamRepository,
+    OCRPageResultRepository,
+    ScriptRepository,
+    UploadedScriptRepository,
+)
 from app.infrastructure.storage import get_storage_provider
+from app.tasks.evaluation import evaluate_question
 from app.tasks.ocr import ingest_file
 
 logger = logging.getLogger(__name__)
@@ -113,7 +126,7 @@ class UploadListView(MethodView):
 
     @jwt_required
     def get(self):
-        """List uploaded scripts for an exam."""
+        """List uploaded scripts for an exam. Professors see only their own uploads."""
         institution_id = get_current_institution_id()
         exam_id = request.args.get("examId")
         page = int(request.args.get("page", 1))
@@ -122,6 +135,8 @@ class UploadListView(MethodView):
         query = {"institutionId": institution_id}
         if exam_id:
             query["examId"] = exam_id
+        if not can_see_all_institution_data():
+            query["createdBy"] = get_current_user_id()
 
         repo = UploadedScriptRepository()
         total = repo.count(query)
@@ -140,6 +155,104 @@ class UploadListView(MethodView):
         }
 
 
+@upload_bp.route("/typed")
+class TypedUploadView(MethodView):
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def post(self):
+        """Submit typed/pasted answers (no file upload). Skips OCR, goes straight to evaluation."""
+        data = request.get_json()
+        if not data:
+            raise ValidationError("JSON body required")
+
+        institution_id = get_current_institution_id()
+        user_id = get_current_user_id()
+        exam_id = data.get("examId")
+        student_name = data.get("studentName", "")
+        student_roll = data.get("studentRollNo", "")
+        answers_input = data.get("answers")
+
+        if not exam_id:
+            raise ValidationError("examId is required")
+        if not answers_input or not isinstance(answers_input, list):
+            raise ValidationError("answers must be a non-empty array of {questionId, answerText}")
+
+        exam_doc = ExamRepository().find_by_id(exam_id, institution_id)
+        if not exam_doc:
+            raise NotFoundError("Exam", exam_id)
+        if not can_see_all_institution_data() and exam_doc.get("createdBy") != user_id:
+            raise NotFoundError("Exam", exam_id)
+
+        exam_questions = {q["questionId"] for q in exam_doc.get("questions", [])}
+        answers = []
+        for a in answers_input:
+            qid = a.get("questionId")
+            text = a.get("answerText", "")
+            if qid not in exam_questions:
+                continue
+            answers.append({
+                "questionId": qid,
+                "text": str(text).strip() if text else "",
+                "isFlagged": not text or not str(text).strip(),
+            })
+
+        if not answers:
+            raise ValidationError("No valid answers for exam questions")
+
+        upload_batch_id = uuid.uuid4().hex
+        uploaded_id = uuid.uuid4().hex
+        file_key = f"typed/{institution_id}/{exam_id}/{uploaded_id}"
+
+        upload_doc = {
+            "institutionId": institution_id,
+            "examId": exam_id,
+            "uploadBatchId": upload_batch_id,
+            "studentMeta": {"name": student_name, "rollNo": student_roll, "email": None},
+            "fileKey": file_key,
+            "originalFilename": "typed-answer.txt",
+            "mimeType": "text/plain",
+            "fileSizeBytes": 0,
+            "pageCount": 0,
+            "uploadStatus": "EVALUATING",
+            "failureReason": None,
+            "virusScanStatus": "CLEAN",
+            "createdAt": datetime.now(timezone.utc),
+            "updatedAt": datetime.now(timezone.utc),
+            "createdBy": user_id,
+        }
+        doc_id = UploadedScriptRepository().insert_one(upload_doc)
+
+        script_doc = {
+            "institutionId": institution_id,
+            "createdBy": user_id,
+            "examId": exam_id,
+            "uploadedScriptId": doc_id,
+            "studentMeta": {"name": student_name, "rollNo": student_roll, "email": None},
+            "answers": answers,
+            "source": ScriptSource.TYPED.value,
+            "ocrConfidenceAverage": 1.0,
+            "ocrQualityFlags": [],
+            "segmentationConfidence": 1.0,
+            "status": ScriptStatus.EVALUATING.value,
+            "createdAt": datetime.now(timezone.utc),
+            "updatedAt": datetime.now(timezone.utc),
+        }
+        script_id = ScriptRepository().insert_one(script_doc)
+
+        run_id = uuid.uuid4().hex
+        trace_id = uuid.uuid4().hex[:16]
+        non_flagged = [a for a in answers if not a["isFlagged"] and a["text"].strip()]
+        for a in non_flagged:
+            evaluate_question.delay(script_id, a["questionId"], run_id, trace_id)
+
+        return {
+            "message": "Typed answer submitted",
+            "uploadedScriptId": doc_id,
+            "scriptId": script_id,
+            "questionCount": len(answers),
+            "evaluatingCount": len(non_flagged),
+        }, 201
+
+
 @upload_bp.route("/<script_id>")
 class UploadDetailView(MethodView):
     @jwt_required
@@ -150,7 +263,31 @@ class UploadDetailView(MethodView):
         if not doc:
             from app.common.exceptions import NotFoundError
             raise NotFoundError("UploadedScript", script_id)
+        if not can_see_all_institution_data() and doc.get("createdBy") != get_current_user_id():
+            from app.common.exceptions import NotFoundError
+            raise NotFoundError("UploadedScript", script_id)
         return _serialize_upload(doc)
+
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def delete(self, script_id: str):
+        """Delete an upload and its scripts, evaluations, and OCR results."""
+        institution_id = get_current_institution_id()
+        doc = UploadedScriptRepository().find_by_id(script_id, institution_id)
+        if not doc:
+            raise NotFoundError("UploadedScript", script_id)
+        if not can_see_all_institution_data() and doc.get("createdBy") != get_current_user_id():
+            raise NotFoundError("UploadedScript", script_id)
+        uploaded_id = str(doc["_id"])
+        scripts = list(ScriptRepository().find_many({"uploadedScriptId": uploaded_id}, limit=50))
+        for s in scripts:
+            sid = str(s["_id"])
+            evals = EvaluationResultRepository().find_by_script(sid)
+            for e in evals:
+                EvaluationResultRepository().delete_one(str(e["_id"]), e.get("institutionId"))
+            ScriptRepository().delete_one(sid, s.get("institutionId"))
+        OCRPageResultRepository().collection.delete_many({"uploadedScriptId": uploaded_id})
+        UploadedScriptRepository().delete_one(script_id, institution_id)
+        return {"message": "Upload deleted", "uploadedScriptId": script_id}
 
 
 def _serialize_upload(doc: dict) -> dict:

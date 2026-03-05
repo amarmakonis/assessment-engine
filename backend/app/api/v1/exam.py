@@ -15,7 +15,12 @@ from flask.views import MethodView
 from flask_smorest import Blueprint
 from pydantic import BaseModel, Field
 
-from app.api.middleware.auth import get_current_institution_id, get_current_user_id, jwt_required
+from app.api.middleware.auth import (
+    can_see_all_institution_data,
+    get_current_institution_id,
+    get_current_user_id,
+    jwt_required,
+)
 from app.api.v1._serializers import _fmt_dt
 from app.common.exceptions import NotFoundError, ValidationError
 from app.infrastructure.db.repositories import ExamRepository
@@ -61,13 +66,15 @@ class ExamListView(MethodView):
 
     @jwt_required
     def get(self):
-        """List all exams for the institution."""
+        """List all exams for the institution. Professors see only their own exams."""
         institution_id = get_current_institution_id()
         page = int(request.args.get("page", 1))
         per_page = min(int(request.args.get("perPage", 50)), 100)
 
         repo = ExamRepository()
         query = {"institutionId": institution_id}
+        if not can_see_all_institution_data():
+            query["createdBy"] = get_current_user_id()
         total = repo.count(query)
         docs = repo.find_many(query, sort=[("createdAt", -1)], skip=(page - 1) * per_page, limit=per_page)
 
@@ -177,7 +184,21 @@ class ExamDetailView(MethodView):
         doc = ExamRepository().find_by_id(exam_id, institution_id)
         if not doc:
             raise NotFoundError("Exam", exam_id)
+        if not can_see_all_institution_data() and doc.get("createdBy") != get_current_user_id():
+            raise NotFoundError("Exam", exam_id)
         return _serialize_exam(doc)
+
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def delete(self, exam_id: str):
+        """Delete an exam."""
+        institution_id = get_current_institution_id()
+        doc = ExamRepository().find_by_id(exam_id, institution_id)
+        if not doc:
+            raise NotFoundError("Exam", exam_id)
+        if not can_see_all_institution_data() and doc.get("createdBy") != get_current_user_id():
+            raise NotFoundError("Exam", exam_id)
+        ExamRepository().delete_one(exam_id, institution_id)
+        return {"message": "Exam deleted", "examId": exam_id}
 
 
 def _extract_text_from_upload(file_obj, pdf_extractor, docx_extractor, image_extractor) -> str:

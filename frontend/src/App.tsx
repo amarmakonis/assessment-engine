@@ -9,6 +9,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { UploadPage } from "@/pages/UploadPage";
 import { ScriptsPage } from "@/pages/ScriptsPage";
 import { OCRReviewPage } from "@/pages/OCRReviewPage";
+import { OCRTestingPage } from "@/pages/OCRTestingPage";
 import { EvaluationPage } from "@/pages/EvaluationPage";
 import { EvaluationsListPage } from "@/pages/EvaluationsListPage";
 import { ReviewQueuePage } from "@/pages/ReviewQueuePage";
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/scripts" element={<ScriptsPage />} />
             <Route path="/scripts/:scriptId/ocr" element={<OCRReviewPage />} />
+            <Route path="/ocr-test" element={<OCRTestingPage />} />
             <Route
               path="/scripts/:scriptId/evaluation"
               element={<EvaluationPage />}

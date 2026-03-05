@@ -52,3 +52,9 @@ def get_current_user_id() -> str:
     if not uid:
         raise AuthError("User identity missing from token")
     return uid
+
+
+def can_see_all_institution_data() -> bool:
+    """True for admins who can see all data in their institution; False for professors who see only their own."""
+    role = getattr(g, "user_role", "")
+    return role in ("SUPER_ADMIN", "INSTITUTION_ADMIN")

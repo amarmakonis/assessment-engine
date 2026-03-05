@@ -116,10 +116,12 @@ class OpenAIGateway:
         Call OpenAI and parse the response into a Pydantic model.
         Uses response_format=json_object for reliable JSON.
         On parse failure, issues a repair prompt up to max_retries times.
+        Default temperature=0 for deterministic outputs (same input → same score).
         """
+        effective_temp = temperature if temperature is not None else 0.0
         llm_response = self.complete(
             system_prompt, user_prompt,
-            temperature=temperature, max_tokens=max_tokens,
+            temperature=effective_temp, max_tokens=max_tokens,
         )
 
         llm_latency.labels(agent_name=agent_name).observe(llm_response.latency_ms / 1000)

@@ -11,13 +11,16 @@ import {
   AlertCircle,
   Clock,
   XCircle,
+  Trash2,
+  Square,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PipelineTracker } from "@/components/dashboard/PipelineTracker";
-import { uploadAPI } from "@/services/api";
+import { uploadAPI, evaluationAPI } from "@/services/api";
 import type { UploadedScript } from "@/types";
 import { clsx } from "clsx";
+import toast from "react-hot-toast";
 import { formatDistanceToNow } from "date-fns";
 
 const TERMINAL_STATUSES = new Set(["EVALUATED", "COMPLETE", "FAILED", "FLAGGED"]);
@@ -175,6 +178,25 @@ export function ScriptsPage() {
                         Results
                       </Link>
                     )}
+                    {s.uploadStatus === "EVALUATING" && s.scriptId && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Stop this evaluation?")) return;
+                          try {
+                            await evaluationAPI.stopEvaluation(s.scriptId);
+                            toast.success("Evaluation stopped");
+                            loadData(true);
+                          } catch {
+                            toast.error("Failed to stop evaluation");
+                          }
+                        }}
+                        className="btn-secondary text-xs !px-3 !py-1.5 flex items-center gap-1.5 text-accent-red hover:bg-red-50"
+                        title="Stop evaluation"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                        Stop
+                      </button>
+                    )}
                     <Link
                       to={`/scripts/${s.id}/ocr`}
                       className="btn-secondary text-xs !px-3 !py-1.5 flex items-center gap-1.5 whitespace-nowrap"
@@ -182,6 +204,23 @@ export function ScriptsPage() {
                       <Eye className="w-3.5 h-3.5" />
                       OCR Review
                     </Link>
+                    <button
+                      onClick={async () => {
+                        if (!confirm("Delete this upload and all related data? This cannot be undone.")) return;
+                        try {
+                          await uploadAPI.delete(s.id);
+                          toast.success("Upload deleted");
+                          loadData(true);
+                        } catch {
+                          toast.error("Failed to delete upload");
+                        }
+                      }}
+                      className="btn-secondary text-xs !px-3 !py-1.5 flex items-center gap-1.5 text-accent-red hover:bg-red-50"
+                      title="Delete upload"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>

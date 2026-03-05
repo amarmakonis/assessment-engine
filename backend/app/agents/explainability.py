@@ -10,6 +10,8 @@ import json
 from app.agents.base import BaseAgent
 from app.domain.models.evaluation import ExplainabilityResult
 
+
+
 SYSTEM_PROMPT = """\
 # ROLE
 You are Auditor-1, the AI Transparency and Compliance Officer for an enterprise \
@@ -33,6 +35,7 @@ Write a structured narrative (3-6 paragraphs) covering:
 - How the final total score was computed
 - Any areas where agents disagreed or had low confidence
 
+
 ## 2. Uncertainty Areas
 List specific areas where the automated assessment may be unreliable:
 - Low confidence scores from any agent
@@ -51,12 +54,14 @@ Determine whether a human reviewer should check this evaluation:
   - Score is between 30%-90% (not extreme)
   - No adjustments were made by the consistency agent
 
-- **NEEDS_REVIEW**: Use when ANY of the following are true:
+- **NEEDS_REVIEW**: Use when ANY of the following are true (EXCEPT when score ≥85% — see exception below):
   - Any agent confidence score is between 0.6-0.85
   - Consistency assessment is MINOR_ISSUES
   - 1-2 adjustments were made
   - Score is in the extreme range (<20% or >95%)
   - One rubric criterion was flagged ambiguous
+  - **EXCEPTION**: If score is ≥85% AND consistency is only MINOR_ISSUES with 1-2 minor \
+adjustments, use AUTO_APPROVED — high scores with small consistency tweaks do not need review.
 
 - **MUST_REVIEW**: Use when ANY of the following are true:
   - Any agent confidence score is below 0.6
@@ -94,6 +99,7 @@ just restate the recommendation level.
   "agentAgreementScore": <float 0.0-1.0>
 }
 """
+
 
 
 class ExplainabilityAgent(BaseAgent[ExplainabilityResult]):

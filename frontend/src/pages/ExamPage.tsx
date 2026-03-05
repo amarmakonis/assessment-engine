@@ -485,6 +485,23 @@ export function ExamPage() {
                   >
                     <Copy className="w-4 h-4" />
                   </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!confirm("Delete this exam? This cannot be undone.")) return;
+                      try {
+                        await examAPI.delete(exam.id);
+                        toast.success("Exam deleted");
+                        loadExams();
+                      } catch {
+                        toast.error("Failed to delete exam");
+                      }
+                    }}
+                    className="text-text-muted hover:text-accent-red p-1"
+                    title="Delete exam"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   {expandedExam === exam.id ? (
                     <ChevronUp className="w-5 h-5 text-text-muted" />
                   ) : (

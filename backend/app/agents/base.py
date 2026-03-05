@@ -61,6 +61,7 @@ class BaseAgent(ABC, Generic[T]):
             user_prompt=user_prompt,
             response_model=self.response_model,
             agent_name=self.agent_name,
+            temperature=0.0,  # Deterministic scoring: same answer → same score
         )
 
         elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)

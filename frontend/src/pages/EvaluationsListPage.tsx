@@ -13,10 +13,13 @@ import {
   Loader2,
   User,
   TrendingUp,
+  Trash2,
+  Square,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { evaluationAPI } from "@/services/api";
+import toast from "react-hot-toast";
 import { clsx } from "clsx";
 
 interface EvalSummary {
@@ -294,10 +297,28 @@ export function EvaluationsListPage() {
 
                 <div className="col-span-2 flex justify-end gap-2">
                   {item.status === "EVALUATING" ? (
-                    <span className="flex items-center gap-1.5 text-xs text-accent-blue">
-                      <Clock className="w-3.5 h-3.5 animate-pulse" />
-                      Processing...
-                    </span>
+                    <>
+                      <span className="flex items-center gap-1.5 text-xs text-accent-blue">
+                        <Clock className="w-3.5 h-3.5 animate-pulse" />
+                        Processing...
+                      </span>
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Stop this evaluation?")) return;
+                          try {
+                            await evaluationAPI.stopEvaluation(item.scriptId);
+                            toast.success("Evaluation stopped");
+                            loadData(true);
+                          } catch {
+                            toast.error("Failed to stop evaluation");
+                          }
+                        }}
+                        className="btn-secondary text-xs !px-2.5 !py-1.5 text-accent-red hover:bg-red-50"
+                        title="Stop evaluation"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                      </button>
+                    </>
                   ) : (
                     <Link
                       to={`/scripts/${item.scriptId}/evaluation`}
@@ -307,6 +328,22 @@ export function EvaluationsListPage() {
                       View Details
                     </Link>
                   )}
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Delete this script and all its evaluations? This cannot be undone.")) return;
+                      try {
+                        await evaluationAPI.deleteScript(item.scriptId);
+                        toast.success("Script deleted");
+                        loadData(true);
+                      } catch {
+                        toast.error("Failed to delete script");
+                      }
+                    }}
+                    className="btn-secondary text-xs !px-2.5 !py-1.5 text-accent-red hover:bg-red-50"
+                    title="Delete script"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </GlassCard>

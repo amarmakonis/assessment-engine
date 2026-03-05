@@ -72,6 +72,7 @@ def prepare_script(
 
         script_doc = {
             "institutionId": upload_doc["institutionId"],
+            "createdBy": upload_doc.get("createdBy"),
             "examId": upload_doc["examId"],
             "uploadedScriptId": uploaded_script_id,
             "studentMeta": upload_doc["studentMeta"],
@@ -155,6 +156,9 @@ def evaluate_question(
         script_doc = ScriptRepository().find_by_id(script_id)
         if not script_doc:
             raise ValueError(f"Script {script_id} not found")
+        if script_doc.get("status") == ScriptStatus.CANCELLED.value:
+            logger.info(f"Script {script_id} cancelled, skipping evaluation")
+            return
 
         exam_doc = ExamRepository().find_by_id(script_doc["examId"])
         if not exam_doc:
@@ -284,6 +288,8 @@ def evaluate_question(
         eval_doc = {
             "runId": run_id,
             "scriptId": script_id,
+            "institutionId": script_doc.get("institutionId"),
+            "createdBy": script_doc.get("createdBy"),
             "questionId": question_id,
             "evaluationVersion": EVALUATION_VERSION,
             "idempotencyKey": idempotency_key,

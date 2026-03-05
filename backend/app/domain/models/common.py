@@ -36,6 +36,7 @@ class ScriptStatus(str, Enum):
     EVALUATING = "EVALUATING"
     COMPLETE = "COMPLETE"
     FLAGGED = "FLAGGED"
+    CANCELLED = "CANCELLED"
 
 
 class ScriptSource(str, Enum):

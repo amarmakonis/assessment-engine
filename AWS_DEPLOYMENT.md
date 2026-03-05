@@ -4,6 +4,22 @@ This guide deploys the full stack on a single **EC2** instance using Docker Comp
 
 ---
 
+## Quick deploy checklist
+
+| Step | Where | Action |
+|------|--------|--------|
+| 1 | MongoDB Atlas | Create cluster, user, allow `0.0.0.0/0` (or EC2 IP), get URI with DB name: `.../aae_db?retryWrites=...` |
+| 2 | AWS EC2 | Launch Ubuntu 22.04, open 22 (SSH), 80 (HTTP), 443 (HTTPS optional) |
+| 3 | EC2 | Install Docker + Docker Compose, add user to `docker` group |
+| 4 | Local | Build frontend: `cd frontend && npm ci && npm run build`; push to Git or SCP project to EC2 |
+| 5 | EC2 | Copy `.env.production.example` to `.env`, set `SECRET_KEY`, `MONGO_URI`, `OPENAI_API_KEY` |
+| 6 | EC2 | `docker compose -f docker-compose.production.yml up -d --build` |
+| 7 | Browser | Open `http://YOUR_EC2_PUBLIC_IP` |
+
+**To deploy updates later:** on EC2 run `git pull`, rebuild frontend, then `docker compose -f docker-compose.production.yml up -d --build` (or `./deploy/deploy.sh`).
+
+---
+
 ## Prerequisites
 
 - AWS account with free credits
@@ -192,11 +208,31 @@ Create an account via Sign Up and start using the app.
 
 ---
 
-## Update Deployment
+## Performance: Multi-page PDFs and evaluation time
+
+Multi-page scripts take longer because: (1) each page is sent to OpenAI Vision for OCR, and (2) each question runs several LLM steps (rubric, scoring, consistency, feedback, explainability). The pipeline already runs **OCR pages in parallel** and **evaluation per question in parallel**; throughput is limited by Celery worker concurrency.
+
+- **Celery concurrency** is set to `6` in `docker-compose.production.yml` so more tasks run at once. On a larger instance (e.g. 4 vCPU), you can raise it: edit the `celery` service command to `--concurrency=8` (or 10) and restart.
+- **Instance size**: For many scripts or long exams, use at least `t3.small` (2 vCPU, 2 GB RAM). Prefer `t3.medium` if you run with higher concurrency.
+- **Rate limits**: If you hit OpenAI rate limits, lower concurrency or add backoff; the app already uses retries.
+
+---
+
+## Update Deployment (deploy your latest changes)
+
+Run this on the EC2 instance whenever you want to deploy new code:
 
 ```bash
 cd ~/assessment-engine
 git pull
 cd frontend && npm ci && npm run build && cd ..
 docker compose -f docker-compose.production.yml up -d --build
+```
+
+Or use the deploy script:
+
+```bash
+cd ~/assessment-engine
+git pull
+./deploy/deploy.sh
 ```
