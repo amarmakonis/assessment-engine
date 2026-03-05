@@ -7,6 +7,7 @@ import {
   Loader2,
   Activity,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { KPICard } from "@/components/ui/KPICard";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -14,6 +15,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { dashboardAPI } from "@/services/api";
+import toast from "react-hot-toast";
 import type { DashboardKPIs, ActivityItem } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 
@@ -56,6 +58,32 @@ export function DashboardPage() {
     const id = setInterval(() => setTick((t) => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  async function handleDismissActivity(item: ActivityItem) {
+    if (!confirm("Remove this from recent activity? Your data will be kept; it will only be hidden from this list.")) return;
+    try {
+      await dashboardAPI.dismissActivity(item.type, item.id);
+      toast.success("Removed from recent activity");
+      setActivity((prev) => prev.filter((a) => !(a.type === item.type && a.id === item.id)));
+      fetchData(true);
+    } catch {
+      toast.error("Failed to remove from list");
+    }
+  }
+
+  async function handleClearAllActivity() {
+    if (activity.length === 0) return;
+    if (!confirm(`Remove all ${activity.length} items from recent activity? Your data will be kept; they will only be hidden from this list.`)) return;
+    try {
+      await dashboardAPI.clearActivity();
+      toast.success("Recent activity cleared");
+      setActivity([]);
+      fetchData(true);
+    } catch {
+      toast.error("Failed to clear list");
+      fetchData(true);
+    }
+  }
 
   if (loading) {
     return (
@@ -123,10 +151,23 @@ export function DashboardPage() {
       </div>
 
       <GlassCard>
-        <h3 className="section-title flex items-center gap-2 mb-4">
-          <Activity className="w-5 h-5 text-accent-blue" />
-          Recent Activity
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="section-title flex items-center gap-2">
+            <Activity className="w-5 h-5 text-accent-blue" />
+            Recent Activity
+          </h3>
+          {activity.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllActivity}
+              className="text-sm text-text-muted hover:text-accent-red transition-colors flex items-center gap-1.5"
+              title="Clear all recent activity"
+            >
+              <Trash2 className="w-4 h-4" />
+              Clear all
+            </button>
+          )}
+        </div>
         <div className="space-y-1 max-h-96 overflow-y-auto">
           {activity.map((item) => (
             <div
@@ -157,6 +198,14 @@ export function DashboardPage() {
                   {item.totalScore}/{item.maxScore}
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => handleDismissActivity(item)}
+                className="p-1.5 rounded text-text-muted hover:text-accent-red hover:bg-red-50 transition-colors"
+                title="Remove from recent activity (data is kept)"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))}
           {activity.length === 0 && (

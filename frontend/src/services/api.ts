@@ -169,6 +169,9 @@ export const dashboardAPI = {
   kpis: () => api.get<DashboardKPIs>("/dashboard/kpis"),
   recentActivity: () =>
     api.get<{ activity: ActivityItem[] }>("/dashboard/recent-activity"),
+  dismissActivity: (type: "upload" | "evaluation", id: string) =>
+    api.post("/dashboard/recent-activity", { type, id }),
+  clearActivity: () => api.post("/dashboard/recent-activity/clear"),
   reviewQueue: () =>
     api.get<{
       items: {
