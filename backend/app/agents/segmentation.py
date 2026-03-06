@@ -47,9 +47,7 @@ question number, or fits the question topic), map it to that question. Only put 
 text in `unmappedText` when it clearly cannot belong to any question (e.g. page \
 headers, footers, "Roll No:", watermarks, illegible scribbles). When in doubt, \
 map to the most likely question and mention the uncertainty in `notes`.
-5. **Consistency.** The same OCR transcript must always produce the same mapping. \
-Be systematic: use question markers (Q1, 1., Question 1, etc.) and document flow \
-to assign every substantial answer block to a question.
+5. **Consistency and determinism.** The same OCR transcript and same question list MUST always produce the same mapping. Identical input → identical JSON output. Be systematic: use question markers (Q1, 1., Question 1, etc.) and document flow to assign every substantial answer block to a question. Do not vary answerText or questionId assignments on re-runs.
 6. **Boundary precision.** When two answers are adjacent with no clear separator, \
 prefer splitting at the point that makes semantic sense given the question topics. \
 Include a note explaining the ambiguous boundary.

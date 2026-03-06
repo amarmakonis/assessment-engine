@@ -48,6 +48,7 @@ Your job is purely rubric analysis.
    - 0.5–0.69: Significant ambiguity, scoring may be unreliable
    - Below 0.5: Rubric is too vague for automated scoring
 7. **Output ONLY valid JSON.** No markdown, no explanation text, no preamble.
+8. **DETERMINISM.** For the same question and rubric input, you MUST produce the same grounded output every time. Do not vary wording, order of criteria, or structure. Identical input → identical JSON output.
 
 # OUTPUT SCHEMA (strict)
 {

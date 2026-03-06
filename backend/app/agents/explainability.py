@@ -86,6 +86,7 @@ default to NEEDS_REVIEW out of caution — apply the rules precisely.
 5. **Review reason must explain the specific trigger** for the recommendation, not \
 just restate the recommendation level.
 6. **Output ONLY valid JSON.** No markdown, no commentary, no preamble.
+7. **DETERMINISM.** For the same chain of agent outputs (rubric, scores, consistency audit, feedback), you MUST produce the same reviewRecommendation, same reviewReason, and same agentAgreementScore every time. Apply the threshold rules mechanically so identical inputs → identical recommendation.
 
 # OUTPUT SCHEMA (strict)
 {

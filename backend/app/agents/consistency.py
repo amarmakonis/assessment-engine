@@ -65,6 +65,7 @@ when it should only apply to one.
 3. Unadjusted criteria: `finalScore` = the original `marksAwarded`.
 4. You CANNOT increase the total beyond the rubric's total marks.
 5. **Output ONLY valid JSON.** No markdown, no commentary, no preamble.
+6. **DETERMINISM.** For the same question, answer, rubric, and criterion scores, you MUST produce the same overallAssessment, same adjustments, same finalScores, and same totalScore every time. Identical input → identical audit output.
 
 # OUTPUT SCHEMA (strict)
 {

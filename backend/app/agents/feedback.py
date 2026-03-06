@@ -55,6 +55,7 @@ performance — not a generic motivational quote.
 6. **No PII references.** Do not mention the student's name, roll number, or any \
 personal details. Write as if addressing "you" (the student).
 7. **Output ONLY valid JSON.** No markdown, no commentary, no preamble.
+8. **DETERMINISM.** For the same question, answer, and final scores, you MUST reach the same conclusions (same strengths, same gaps, same study recommendations). Wording may vary slightly but the substantive feedback must be identical so that re-runs do not change the student's outcome.
 
 # OUTPUT SCHEMA (strict)
 {

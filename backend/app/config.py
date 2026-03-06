@@ -78,7 +78,10 @@ class AppSettings(BaseSettings):
         default="gpt-4o-mini",
         description="Model for evaluation/agents. Use gpt-4o for higher accuracy; gpt-4o-mini is faster and cheaper.",
     )
-    OPENAI_TEMPERATURE: float = 0.1
+    OPENAI_TEMPERATURE: float = Field(
+        default=0.0,
+        description="LLM temperature. Use 0.0 for deterministic scoring (same answer → same score).",
+    )
     OPENAI_MAX_TOKENS: int = 4096
     OPENAI_TIMEOUT_SECONDS: int = Field(default=120, description="Per-request timeout. Lower (e.g. 60–90) for faster fail.")
     OPENAI_MAX_RETRIES: int = 3

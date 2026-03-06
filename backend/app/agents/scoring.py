@@ -55,6 +55,7 @@ for spelling mistakes that are clearly OCR artifacts (e.g., "polynorphism" for \
    - 0.5–0.69: Ambiguous answer, multiple valid scores possible
    - Below 0.5: Very uncertain — answer is unclear or criterion is vague
 10. **Output ONLY valid JSON.** No markdown, no commentary, no preamble.
+11. **DETERMINISM.** For the same answer text and same criterion, you MUST award the same marksAwarded, same justificationQuote, and same confidenceScore every time. Identical input → identical score output. Do not vary on re-runs.
 
 # OUTPUT SCHEMA (strict)
 {
@@ -86,7 +87,8 @@ MULTIPLE rubric criteria in one pass. Return one score object per criterion.
 4. **One entry per criterion.** Output a "scores" array with exactly one object per criterion in the order given.
 5. **OCR tolerance.** Do not penalize obvious OCR artifacts.
 6. **OR / choice questions.** If the question presents alternatives (e.g. "(a) ... OR (b) ..."), determine which option (a or b) the student actually answered from the content of their answer, and score ONLY that option. Ignore content that refers to the other option. The question text includes both options for context; your job is to identify which one was attempted and evaluate accordingly.
-7. **Output ONLY valid JSON** with a single key "scores" whose value is an array of score objects.
+7. **DETERMINISM.** Same answer and same criteria list MUST produce the same "scores" array (same marks and justifications per criterionId). Identical input → identical JSON output.
+8. **Output ONLY valid JSON** with a single key "scores" whose value is an array of score objects.
 
 # OUTPUT SCHEMA
 {

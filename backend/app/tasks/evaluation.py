@@ -234,14 +234,19 @@ def evaluate_question(
 
         answer_text = answer_entry["text"]
         question_text = question_def["questionText"]
-        rubric_criteria = [
-            {
-                "criterionId": c["criterionId"],
-                "description": c["description"],
-                "maxMarks": c["maxMarks"],
-            }
-            for c in question_def.get("rubric", [])
-        ]
+        raw_rubric = question_def.get("rubric", [])
+        # Fixed order by criterionId so same exam always gives same prompt → deterministic grounding
+        rubric_criteria = sorted(
+            [
+                {
+                    "criterionId": c["criterionId"],
+                    "description": c["description"],
+                    "maxMarks": c["maxMarks"],
+                }
+                for c in raw_rubric
+            ],
+            key=lambda x: x["criterionId"],
+        )
 
         settings = get_settings()
         eval_max_tokens = getattr(settings, "OPENAI_EVALUATION_MAX_TOKENS", 2048)
@@ -267,13 +272,15 @@ def evaluate_question(
             grounded_rubric.total_marks = question_max_marks
 
         # ── Agent 2: Scoring (per criterion) ───────────────
+        # Pass criteria in fixed order (by criterionId) for deterministic scoring
+        sorted_criteria = sorted(
+            grounded_rubric.criteria, key=lambda c: c.criterion_id
+        )
         scoring_agent = ScoringAgent()
         criterion_scores, scoring_metas = scoring_agent.score_all_criteria(
             trace_id=trace_id,
             answer_text=answer_text,
-            grounded_criteria=[
-                c.model_dump(by_alias=True) for c in grounded_rubric.criteria
-            ],
+            grounded_criteria=[c.model_dump(by_alias=True) for c in sorted_criteria],
             question_text=question_text,
         )
         for m in scoring_metas:
@@ -281,12 +288,14 @@ def evaluate_question(
             total_completion_tokens += m["completion_tokens"]
 
         # ── Agent 3: Consistency Check ─────────────────────
+        # Pass scores in fixed order (by criterionId) for deterministic audit
+        sorted_scores = sorted(criterion_scores, key=lambda s: s.criterion_id)
         consistency_agent = ConsistencyAgent()
         consistency_audit, consistency_meta = consistency_agent.execute(
             trace_id=trace_id,
             answer_text=answer_text,
             rubric=grounded_rubric.model_dump(by_alias=True),
-            criterion_scores=[s.model_dump(by_alias=True) for s in criterion_scores],
+            criterion_scores=[s.model_dump(by_alias=True) for s in sorted_scores],
             question_text=question_text,
             max_tokens=eval_max_tokens,
         )
@@ -313,12 +322,15 @@ def evaluate_question(
         consistency_audit.total_score = total_score
 
         # ── Agent 4: Feedback ──────────────────────────────
+        sorted_final = sorted(
+            consistency_audit.final_scores, key=lambda fs: fs.criterion_id
+        )
         feedback_agent = FeedbackAgent()
         feedback, feedback_meta = feedback_agent.execute(
             trace_id=trace_id,
             question_text=question_text,
             answer_text=answer_text,
-            final_scores=[fs.model_dump(by_alias=True) for fs in consistency_audit.final_scores],
+            final_scores=[fs.model_dump(by_alias=True) for fs in sorted_final],
             total_score=total_score,
             max_score=max_score,
             max_tokens=eval_max_tokens,

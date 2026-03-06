@@ -172,7 +172,7 @@ def build_rubrics_for_questions(
     llm_response = gateway.complete(
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_prompt,
-        temperature=0.1,
+        temperature=0.0,  # Deterministic: same questions → same rubrics
         max_tokens=8192,
     )
 
