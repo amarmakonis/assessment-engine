@@ -8,7 +8,8 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 
 FLASK_PID=""
-CELERY_PID=""
+CELERY_OCR_PID=""
+CELERY_EVAL_PID=""
 DOCKER_MONGO=false
 DOCKER_REDIS=false
 
@@ -16,7 +17,8 @@ cleanup() {
   echo ""
   echo "Shutting down..."
   [ -n "$FLASK_PID" ] && kill "$FLASK_PID" 2>/dev/null || true
-  [ -n "$CELERY_PID" ] && kill "$CELERY_PID" 2>/dev/null || true
+  [ -n "$CELERY_OCR_PID" ] && kill "$CELERY_OCR_PID" 2>/dev/null || true
+  [ -n "$CELERY_EVAL_PID" ] && kill "$CELERY_EVAL_PID" 2>/dev/null || true
   if [ "$DOCKER_MONGO" = true ]; then
     docker stop mongo 2>/dev/null || true
   fi
@@ -70,15 +72,24 @@ fi
 echo "Waiting for MongoDB and Redis..."
 sleep 3
 
-echo "Starting Flask backend..."
 cd "$BACKEND"
 source venv/bin/activate 2>/dev/null || . venv/Scripts/activate 2>/dev/null || true
+
+# Purge stale Celery tasks from previous runs (avoids old aggregate_pages/segment_answers flooding workers)
+echo "Purging stale tasks from OCR and evaluation queues..."
+celery -A celery_app:celery purge -Q ocr -f 2>/dev/null || true
+celery -A celery_app:celery purge -Q evaluation -f 2>/dev/null || true
+celery -A celery_app:celery purge -Q default -f 2>/dev/null || true
+
+echo "Starting Flask backend..."
 python -m flask run --host=0.0.0.0 --port=5000 &
 FLASK_PID=$!
 
-echo "Starting Celery worker..."
-celery -A celery_app:celery worker -Q ocr,evaluation,default -l info &
-CELERY_PID=$!
+echo "Starting Celery workers (OCR + Evaluation)..."
+celery -A celery_app:celery worker -Q ocr -l info --concurrency=8 &
+CELERY_OCR_PID=$!
+celery -A celery_app:celery worker -Q evaluation,default -l info --concurrency=8 &
+CELERY_EVAL_PID=$!
 
 sleep 2
 

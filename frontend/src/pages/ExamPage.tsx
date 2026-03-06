@@ -129,7 +129,7 @@ export function ExamPage() {
       const { data } = await examAPI.upload(formData);
       toast.success(`Exam created! ${data.totalMarks} total marks extracted.`);
       if (data.marksMismatchWarning) {
-        toast.warning(data.marksMismatchWarning, { duration: 8000 });
+        toast(data.marksMismatchWarning, { duration: 8000, icon: "⚠️" });
       }
       resetForm();
       loadExams();

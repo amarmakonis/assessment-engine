@@ -75,8 +75,8 @@ class AppSettings(BaseSettings):
     # ── OpenAI (powers OCR + evaluation + all agents) ─────
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key (required)")
     OPENAI_MODEL: str = Field(
-        default="gpt-4o",
-        description="Model for evaluation/agents. Use gpt-4o-mini for faster, cheaper evaluation (slightly lower accuracy).",
+        default="gpt-4o-mini",
+        description="Model for evaluation/agents. Use gpt-4o for higher accuracy; gpt-4o-mini is faster and cheaper.",
     )
     OPENAI_TEMPERATURE: float = 0.1
     OPENAI_MAX_TOKENS: int = 4096
@@ -86,14 +86,16 @@ class AppSettings(BaseSettings):
 
     # Model for segmentation. Default gpt-4o-mini for speed; set to OPENAI_MODEL or empty to use main model.
     OPENAI_MODEL_SEGMENTATION: str | None = Field(default="gpt-4o-mini", description="Model for segmentation. Default gpt-4o-mini for speed. Set empty/None to use OPENAI_MODEL.")
-    # Max tokens for segmentation response (large scripts need 8k+). Lower = faster completion.
-    OPENAI_SEGMENTATION_MAX_TOKENS: int = Field(default=8192, description="Max completion tokens for segmentation. Lower (e.g. 4096) can speed up long scripts.")
-    # Cap OCR text length sent to segmentation (chars). Reduces latency for very long scripts. 0 = no cap.
-    SEGMENTATION_MAX_OCR_CHARS: int = Field(default=0, description="Max OCR chars sent to segmentation (0 = no cap). Set e.g. 80000 to speed up 30+ page scripts.")
+    # Max tokens for segmentation response. Keep high enough so full mapping is not truncated.
+    OPENAI_SEGMENTATION_MAX_TOKENS: int = Field(default=8192, description="Max completion tokens for segmentation. Lower (e.g. 4096) speeds up but may truncate output for many questions.")
+    # Cap OCR text length sent to segmentation (chars). 0 = no cap (full script sent); set e.g. 80000 only if you accept truncation.
+    SEGMENTATION_MAX_OCR_CHARS: int = Field(default=0, description="Max OCR chars sent to segmentation. 0 = full text (recommended). Set a value only if you accept truncating the tail of long scripts.")
+    # Max chars of each question's text in the segmentation prompt (reduces tokens and latency).
+    SEGMENTATION_MAX_QUESTION_TEXT_CHARS: int = Field(default=500, description="Truncate each question text to this many chars in segmentation prompt. 0 = no truncation.")
     SEGMENTATION_SOFT_TIME_LIMIT: int = Field(default=300, description="Celery soft time limit (seconds) for segment_answers.")
     SEGMENTATION_TIME_LIMIT: int = Field(default=330, description="Celery hard time limit (seconds) for segment_answers.")
     # Max tokens for evaluation sub-agents (rubric, consistency, feedback, explainability). Lower = faster.
-    OPENAI_EVALUATION_MAX_TOKENS: int = Field(default=2048, description="Max completion tokens per evaluation agent call. Lower = faster, may truncate long feedback.")
+    OPENAI_EVALUATION_MAX_TOKENS: int = Field(default=1024, description="Max completion tokens per evaluation agent call. Increase to 2048 if feedback is truncated.")
 
     # ── Upload Limits ──────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 50
@@ -101,8 +103,8 @@ class AppSettings(BaseSettings):
 
     # ── OCR (answer papers: PDF → images → Vision per page) ─
     OCR_DPI: int = Field(
-        default=150,
-        description="DPI for PDF→image conversion for answer papers. Lower (e.g. 150) = faster, smaller images; higher = better quality, slower.",
+        default=120,
+        description="DPI for PDF→image conversion for answer papers. Lower = faster; increase to 150 for denser scripts.",
     )
     OCR_PAGE_SOFT_TIME_LIMIT: int = Field(
         default=300,

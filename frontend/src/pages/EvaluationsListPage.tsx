@@ -99,7 +99,6 @@ export function EvaluationsListPage() {
       ? filtered.reduce((s, i) => s + i.percentageScore, 0) / filtered.length
       : 0;
   const completedCount = filtered.filter((i) => i.status === "COMPLETE").length;
-  const inReviewCount = filtered.filter((i) => i.status === "IN_REVIEW").length;
   const reviewCount = filtered.filter((i) => i.needsReview).length;
 
   function scoreColor(pct: number) {
