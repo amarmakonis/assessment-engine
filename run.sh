@@ -19,6 +19,8 @@ cleanup() {
   [ -n "$FLASK_PID" ] && kill "$FLASK_PID" 2>/dev/null || true
   [ -n "$CELERY_OCR_PID" ] && kill "$CELERY_OCR_PID" 2>/dev/null || true
   [ -n "$CELERY_EVAL_PID" ] && kill "$CELERY_EVAL_PID" 2>/dev/null || true
+  # Give Celery time to ack tasks so Redis is not stopped while workers are still acking (avoids "Connection refused" and requeued messages)
+  sleep 3
   if [ "$DOCKER_MONGO" = true ]; then
     docker stop mongo 2>/dev/null || true
   fi

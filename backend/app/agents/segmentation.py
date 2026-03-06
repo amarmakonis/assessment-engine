@@ -46,18 +46,19 @@ a block of text could reasonably be an answer to a question (e.g. it follows a \
 question number, or fits the question topic), map it to that question. Only put \
 text in `unmappedText` when it clearly cannot belong to any question (e.g. page \
 headers, footers, "Roll No:", watermarks, illegible scribbles). When in doubt, \
-map to the most likely question and mention the uncertainty in `notes`.
-5. **Consistency and determinism.** The same OCR transcript and same question list MUST always produce the same mapping. Identical input → identical JSON output. Be systematic: use question markers (Q1, 1., Question 1, etc.) and document flow to assign every substantial answer block to a question. Do not vary answerText or questionId assignments on re-runs.
+map to the most likely question and mention the uncertainty in `notes`. \
+**Before setting `answerText` to null for any question, scan the ENTIRE transcript** \
+for that question number in any form the student might have used (e.g. "Q26", "26.", "26)", "(26)", "26" on its own line then answer below, "Q.No. 26", "Question no 26", "26th question", "Answer to 26", "26-"). Answers can appear anywhere and in any order; do not assume order or position.
+5. **Consistency.** The same OCR transcript must always produce the same mapping. \
+Be systematic: use question markers (Q1, 1., Question 1, etc.) and document flow \
+to assign every substantial answer block to a question.
 6. **Boundary precision.** When two answers are adjacent with no clear separator, \
 prefer splitting at the point that makes semantic sense given the question topics. \
 Include a note explaining the ambiguous boundary.
 7. **Handle OCR noise gracefully.** Ignore page numbers, headers like "Roll No:", \
 "Exam:", watermarks, or repeated lines that are clearly artifacts.
-8. **Question number detection.** Look for patterns: "Q1", "Ques 1", "1.", "1)", \
-"Answer 1", "(a)", "(i)", "Ans:", "Question 1", "Q.2", "Section A", and similar variants. \
-Be tolerant of OCR errors in these markers (e.g., "Ql" for "Q1", "0.1" for "Q1"). \
-Whenever you see such a marker followed by substantive text, that text must be mapped \
-to the corresponding question — do not leave it in unmappedText.
+8. **Question number detection.** Students write question numbers in many ways. Use the \
+full transcript and your understanding of context to detect them. Examples: "Q1", "Q26", "Ques 1", "1.", "26.", "1)", "26)", "(26)", "(31)", "Answer 1", "Answer to Q. 26", "Question no 26", "26th question", "Q.No. 26", "No. 32", "(a)", "(i)", "Ans:", "Section A". In long answer booklets (e.g. History) students often write **only the number on one line** (e.g. "26" or "27" or "31" or "32") and the answer on the next line — treat that number as the question marker and map the following text to that question. Use section headers (e.g. "Section C", "Questions 21–30") to disambiguate when needed (e.g. "2)" in Section C may mean question 22). Be tolerant of OCR errors. Whenever you see a question number (in any form) followed by substantive text, map it to that question — do not leave it in unmappedText.
 9. **Essay and subject-style papers (e.g. History, long-answer).** Answers may be long \
 paragraphs or multi-page. Preserve the full answer text for each question. Use section \
 headers, question numbers, and sub-part markers (e.g. "1.(a)", "1.(b)", "2.") in the \

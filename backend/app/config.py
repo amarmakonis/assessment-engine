@@ -91,12 +91,12 @@ class AppSettings(BaseSettings):
     OPENAI_MODEL_SEGMENTATION: str | None = Field(default="gpt-4o-mini", description="Model for segmentation. Default gpt-4o-mini for speed. Set empty/None to use OPENAI_MODEL.")
     # Max tokens for segmentation response. Keep high enough so full mapping is not truncated.
     OPENAI_SEGMENTATION_MAX_TOKENS: int = Field(default=8192, description="Max completion tokens for segmentation. Lower (e.g. 4096) speeds up but may truncate output for many questions.")
-    # Cap OCR text length sent to segmentation (chars). 0 = no cap (full script sent); set e.g. 80000 only if you accept truncation.
-    SEGMENTATION_MAX_OCR_CHARS: int = Field(default=0, description="Max OCR chars sent to segmentation. 0 = full text (recommended). Set a value only if you accept truncating the tail of long scripts.")
+    # Cap OCR text length sent to segmentation (chars). 0 = full text. Set e.g. 100000–120000 to speed up segmentation for very long scripts (may omit content from the end).
+    SEGMENTATION_MAX_OCR_CHARS: int = Field(default=0, description="Max OCR chars sent to segmentation. 0 = full text. Set 100000–120000 to reduce latency on 30+ page scripts (trade-off: tail of script may be truncated).")
     # Max chars of each question's text in the segmentation prompt (reduces tokens and latency).
-    SEGMENTATION_MAX_QUESTION_TEXT_CHARS: int = Field(default=500, description="Truncate each question text to this many chars in segmentation prompt. 0 = no truncation.")
-    SEGMENTATION_SOFT_TIME_LIMIT: int = Field(default=300, description="Celery soft time limit (seconds) for segment_answers.")
-    SEGMENTATION_TIME_LIMIT: int = Field(default=330, description="Celery hard time limit (seconds) for segment_answers.")
+    SEGMENTATION_MAX_QUESTION_TEXT_CHARS: int = Field(default=300, description="Truncate each question text to this many chars in segmentation prompt (reduces latency). 0 = no truncation.")
+    SEGMENTATION_SOFT_TIME_LIMIT: int = Field(default=600, description="Celery soft time limit (seconds) for segment_answers. Increase for long scripts (e.g. 33+ pages).")
+    SEGMENTATION_TIME_LIMIT: int = Field(default=660, description="Celery hard time limit (seconds) for segment_answers.")
     # Max tokens for evaluation sub-agents (rubric, consistency, feedback, explainability). Lower = faster.
     OPENAI_EVALUATION_MAX_TOKENS: int = Field(default=1024, description="Max completion tokens per evaluation agent call. Increase to 2048 if feedback is truncated.")
 

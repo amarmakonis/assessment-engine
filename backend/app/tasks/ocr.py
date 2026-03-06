@@ -16,7 +16,8 @@ import uuid
 
 from celery import group
 
-from app.common.exceptions import OCRError, SegmentationError
+from app.common.exceptions import OCRError
+from app.infrastructure.cache.redis_cache import RedisCache
 from app.common.observability import (
     ocr_confidence_score,
     ocr_processing_duration,
@@ -31,11 +32,13 @@ from app.infrastructure.db.repositories import (
     UploadedScriptRepository,
 )
 from app.infrastructure.storage import get_storage_provider
+from celery.exceptions import MaxRetriesExceededError
 from celery_app import celery
 
 logger = logging.getLogger(__name__)
 
 LOW_CONFIDENCE_THRESHOLD = 0.65
+AGGREGATE_LOCK_TTL = 600  # seconds; only one worker aggregates per script
 
 
 @celery.task(
@@ -220,12 +223,32 @@ def aggregate_pages(
 ):
     """Aggregate all OCR page results into full text and trigger segmentation.
     Scheduled with countdown after fan-out; retries until all pages are ready.
+    Uses a Redis lock so only one worker runs per script; idempotent if already OCR_COMPLETE.
     """
-    logger.info(
-        "aggregate_pages started for script %s",
-        uploaded_script_id,
-    )
+    lock_key = f"aggregate_lock:{uploaded_script_id}"
+    cache = RedisCache()
+    acquired = cache.set_with_nx(lock_key, "1", AGGREGATE_LOCK_TTL)
+    if not acquired:
+        logger.info(
+            "aggregate_pages: skip script %s (another worker holds lock)",
+            uploaded_script_id,
+        )
+        return
     try:
+        doc = UploadedScriptRepository().find_by_id(uploaded_script_id)
+        if not doc:
+            return
+        if doc.get("uploadStatus") == UploadStatus.OCR_COMPLETE.value:
+            logger.info(
+                "aggregate_pages: already OCR_COMPLETE for %s, skip",
+                uploaded_script_id,
+            )
+            return
+
+        logger.info(
+            "aggregate_pages started for script %s",
+            uploaded_script_id,
+        )
         ocr_repo = OCRPageResultRepository()
         pages = ocr_repo.find_by_script(uploaded_script_id)
 
@@ -234,8 +257,7 @@ def aggregate_pages(
 
         expected = expected_page_count
         if expected is None:
-            doc = UploadedScriptRepository().find_by_id(uploaded_script_id)
-            expected = doc.get("pageCount") if doc else None
+            expected = doc.get("pageCount")
 
         if expected is not None and len(pages) < expected:
             logger.info(
@@ -267,7 +289,6 @@ def aggregate_pages(
             len(pages_sorted),
         )
 
-        doc = UploadedScriptRepository().find_by_id(uploaded_script_id)
         if doc:
             ocr_confidence_score.labels(
                 institution_id=doc.get("institutionId", "unknown")
@@ -277,9 +298,12 @@ def aggregate_pages(
             uploaded_script_id, full_text, avg_confidence,
             list(all_flags), trace_id,
         )
-
+    except MaxRetriesExceededError:
+        raise
     except Exception as exc:
         raise self.retry(exc=exc, countdown=2 ** self.request.retries * 10)
+    finally:
+        cache.delete(lock_key)
 
 
 def _segment_answers_limits():
@@ -382,16 +406,22 @@ def segment_answers(
 
         doc = UploadedScriptRepository().find_by_id(uploaded_script_id)
         if not doc:
-            raise SegmentationError(f"Script {uploaded_script_id} not found")
+            logger.warning("segment_answers: script %s not found (stale task?), skipping", uploaded_script_id)
+            return
 
         exam = ExamRepository().find_by_id(doc["examId"])
         if not exam:
-            raise SegmentationError(f"Exam {doc['examId']} not found")
+            logger.warning("segment_answers: exam %s not found for script %s (stale task?), skipping", doc.get("examId"), uploaded_script_id)
+            return
 
-        questions = [
-            {"questionId": q["questionId"], "questionText": q["questionText"]}
-            for q in exam.get("questions", [])
-        ]
+        max_q_chars = getattr(settings, "SEGMENTATION_MAX_QUESTION_TEXT_CHARS", 0) or 0
+        questions = []
+        for q in exam.get("questions", []):
+            qtext = (q.get("questionText") or "").strip()
+            if max_q_chars > 0 and len(qtext) > max_q_chars:
+                qtext = qtext[:max_q_chars] + "..."
+            questions.append({"questionId": q.get("questionId"), "questionText": qtext})
+        question_ids = [q.get("questionId", "") for q in exam.get("questions", []) if q.get("questionId")]
 
         seg_model = getattr(settings, "OPENAI_MODEL_SEGMENTATION", None)
         seg_max_tokens = getattr(settings, "OPENAI_SEGMENTATION_MAX_TOKENS", 8192)
@@ -406,7 +436,6 @@ def segment_answers(
         )
 
         seg_dict = result.model_dump(by_alias=True)
-        question_ids = [q.get("questionId", "") for q in exam.get("questions", []) if q.get("questionId")]
         seg_dict = _recover_answers_from_unmapped(seg_dict, question_ids)
 
         UploadedScriptRepository().update_one(uploaded_script_id, {
