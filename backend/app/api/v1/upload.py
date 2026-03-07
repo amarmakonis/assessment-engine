@@ -5,8 +5,11 @@ File upload endpoints — ingestion, batch upload, status tracking, typed answer
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
+from io import BytesIO
 
 import magic
 from flask import request
@@ -31,10 +34,125 @@ from app.infrastructure.db.repositories import (
     UploadedScriptRepository,
 )
 from app.infrastructure.storage import get_storage_provider
-from app.tasks.evaluation import evaluate_question
-from app.tasks.ocr import ingest_file
 
 logger = logging.getLogger(__name__)
+
+
+def _run_ingest(doc_id: str) -> None:
+    """Run ingest via sync pipeline or Celery depending on config."""
+    import threading
+
+    from app.config import get_settings
+    if get_settings().USE_CELERY_REDIS:
+        from app.tasks.ocr import ingest_file
+        ingest_file.delay(doc_id)
+    else:
+        from app.services.sync_pipeline import run_ingest
+
+        def _bg_ingest():
+            try:
+                run_ingest(doc_id)
+            except Exception:
+                logger.exception("Background ingest failed for %s", doc_id)
+
+        t = threading.Thread(target=_bg_ingest, daemon=True)
+        t.start()
+
+
+def _ingest_from_temp_in_background(doc_id: str, temp_path: str) -> None:
+    """Run ingest from temp file (answer script files are not stored). Then delete temp file."""
+    import threading
+
+    from app.domain.models.common import UploadStatus
+    from app.services.sync_pipeline import run_ingest
+
+    def _bg():
+        try:
+            run_ingest(doc_id, local_file_path=temp_path)
+        except Exception:
+            logger.exception("Background ingest failed for %s", doc_id)
+            UploadedScriptRepository().update_one(doc_id, {
+                "$set": {"uploadStatus": UploadStatus.FAILED.value, "failureReason": "Ingest failed"}
+            })
+        finally:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass
+
+    t = threading.Thread(target=_bg, daemon=True)
+    t.start()
+
+
+def _upload_to_storage_and_ingest_in_background(
+    doc_id: str, temp_path: str, file_key: str, metadata: dict
+) -> None:
+    """Upload to storage then run ingest (used only when USE_CELERY_REDIS is True)."""
+    import threading
+
+    from app.domain.models.common import UploadStatus
+
+    def _bg():
+        try:
+            with open(temp_path, "rb") as f:
+                get_storage_provider().upload(BytesIO(f.read()), file_key, metadata)
+            _run_ingest(doc_id)
+        except Exception:
+            logger.exception("Background upload/ingest failed for %s", doc_id)
+            UploadedScriptRepository().update_one(doc_id, {
+                "$set": {"uploadStatus": UploadStatus.FAILED.value, "failureReason": "Upload to storage or ingest failed"}
+            })
+        finally:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass
+
+    t = threading.Thread(target=_bg, daemon=True)
+    t.start()
+
+
+def _store_file_and_ingest_in_background(
+    doc_id: str, temp_path: str, file_key: str, metadata: dict
+) -> None:
+    """Store file in GridFS (for tuning / re-run OCR) and run ingest from temp. Keeps file for later."""
+    import threading
+
+    from app.domain.models.common import UploadStatus
+    from app.services.sync_pipeline import run_ingest
+
+    def _bg():
+        try:
+            with open(temp_path, "rb") as f:
+                get_storage_provider().upload(BytesIO(f.read()), file_key, metadata)
+            run_ingest(doc_id, local_file_path=temp_path)
+        except Exception:
+            logger.exception("Background store+ingest failed for %s", doc_id)
+            UploadedScriptRepository().update_one(doc_id, {
+                "$set": {"uploadStatus": UploadStatus.FAILED.value, "failureReason": "Store or ingest failed"}
+            })
+        finally:
+            try:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except OSError:
+                pass
+
+    t = threading.Thread(target=_bg, daemon=True)
+    t.start()
+
+
+def _run_evaluate_question(script_id: str, question_id: str, run_id: str, trace_id: str) -> None:
+    """Run evaluate via sync pipeline or Celery depending on config."""
+    from app.config import get_settings
+    if get_settings().USE_CELERY_REDIS:
+        from app.tasks.evaluation import evaluate_question
+        evaluate_question.delay(script_id, question_id, run_id, trace_id)
+    else:
+        from app.services.sync_pipeline import run_evaluate_question
+        run_evaluate_question(script_id, question_id, run_id, trace_id)
 upload_bp = Blueprint("upload", __name__, url_prefix="/uploads", description="File Uploads")
 
 
@@ -58,6 +176,7 @@ class UploadListView(MethodView):
         student_name = request.form.get("studentName", "")
         student_roll = request.form.get("studentRollNo", "")
         student_email = request.form.get("studentEmail")
+        store_file = request.form.get("storeFile", "").lower() in ("true", "1", "yes") or request.form.get("forTuning", "").lower() in ("true", "1", "yes")
 
         upload_batch_id = uuid.uuid4().hex
         results = []
@@ -82,10 +201,17 @@ class UploadListView(MethodView):
                 })
                 continue
 
-            file_key = f"{institution_id}/{exam_id}/{uuid.uuid4().hex}"
-            from io import BytesIO
-            storage = get_storage_provider()
-            storage.upload(BytesIO(file_bytes), file_key, {"originalFilename": f.filename or ""})
+            # Store file in GridFS when storeFile/forTuning=true (for segmentation tuning / re-run OCR).
+            # With Celery we always store so the worker can download; otherwise only when requested.
+            use_celery = settings.USE_CELERY_REDIS
+            store_file_for_tuning = store_file and not use_celery
+            file_key = f"{institution_id}/{exam_id}/{uuid.uuid4().hex}" if (use_celery or store_file_for_tuning) else None
+
+            fd, temp_path = tempfile.mkstemp(suffix=".upload")
+            try:
+                os.write(fd, file_bytes)
+            finally:
+                os.close(fd)
 
             doc = {
                 "institutionId": institution_id,
@@ -109,8 +235,24 @@ class UploadListView(MethodView):
                 "createdBy": user_id,
             }
 
-            doc_id = UploadedScriptRepository().insert_one(doc)
-            ingest_file.delay(doc_id)
+            try:
+                doc_id = UploadedScriptRepository().insert_one(doc)
+            except Exception:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+                raise
+            if use_celery:
+                _upload_to_storage_and_ingest_in_background(
+                    doc_id, temp_path, file_key, {"originalFilename": f.filename or ""}
+                )
+            elif store_file_for_tuning:
+                _store_file_and_ingest_in_background(
+                    doc_id, temp_path, file_key, {"originalFilename": f.filename or ""}
+                )
+            else:
+                _ingest_from_temp_in_background(doc_id, temp_path)
 
             results.append({
                 "filename": f.filename,
@@ -242,7 +384,7 @@ class TypedUploadView(MethodView):
         trace_id = uuid.uuid4().hex[:16]
         non_flagged = [a for a in answers if not a["isFlagged"] and a["text"].strip()]
         for a in non_flagged:
-            evaluate_question.delay(script_id, a["questionId"], run_id, trace_id)
+            _run_evaluate_question(script_id, a["questionId"], run_id, trace_id)
 
         return {
             "message": "Typed answer submitted",

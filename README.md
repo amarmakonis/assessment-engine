@@ -62,7 +62,6 @@ Built by [Makonis.ai](https://makonis.ai)
 | LLM + OCR | **OpenAI API (GPT-4o)** — powers OCR (Vision), segmentation, and all evaluation agents |
 | Frontend | React 18 + Vite + TypeScript + TailwindCSS |
 | Auth | JWT + refresh tokens + RBAC |
-| Containerization | Docker + Docker Compose |
 | Observability | JSON structured logging + Prometheus metrics |
 
 ---
@@ -123,7 +122,6 @@ Assessment Engine/
 │   ├── celery_app.py              # Celery application entry
 │   ├── wsgi.py                    # WSGI entry point
 │   ├── requirements.txt
-│   ├── Dockerfile                 # Multi-stage: api / celery-ocr / celery-eval
 │   ├── pytest.ini
 │   └── tests/
 │       └── unit/                  # Mocked agent, API, infra tests
@@ -143,9 +141,7 @@ Assessment Engine/
 │   ├── vitest.config.ts
 │   ├── tailwind.config.ts
 │   ├── tsconfig.json
-│   ├── Dockerfile
 │   └── nginx.conf
-├── docker-compose.yml             # Full dev stack
 ├── .env.example
 ├── .gitignore
 └── README.md
@@ -157,7 +153,7 @@ Assessment Engine/
 
 ### Prerequisites
 
-- Docker & Docker Compose (or Python 3.12 + Node 20 for local dev)
+- Python 3.12 + Node 20
 - An OpenAI API key (GPT-4o — used for OCR, segmentation, and all evaluation agents)
 
 ### 1. Clone and configure
@@ -169,24 +165,20 @@ cp .env.example .env
 
 ### 2. Start all services
 
+Ensure MongoDB is running (localhost:27017 or set `MONGO_URI` in `.env` for MongoDB Atlas).
+
 ```bash
-docker compose up --build
+./run.sh
 ```
 
 This starts:
-- **MongoDB** on port `27017`
-- **Redis** on port `6379`
-- **MinIO** on ports `9000` (API) / `9001` (console)
 - **Flask API** on port `5000`
-- **Celery OCR worker** (queue: `ocr`, `default`)
-- **Celery Evaluation worker** (queue: `evaluation`)
-- **Frontend (Nginx)** on port `3000`
+- **Frontend (Vite)** on port `3000` (or 3001 if 3000 is in use)
 
 ### 3. Access the application
 
 - **Frontend**: http://localhost:3000
 - **API Swagger**: http://localhost:5000/api/docs/swagger
-- **MinIO Console**: http://localhost:9001
 
 ### 4. Create a user (API)
 
@@ -204,29 +196,25 @@ curl -X POST http://localhost:5000/api/v1/auth/register \
 
 ---
 
-## Local Development (without Docker)
+## Local Development
 
 ### Backend
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # or: . venv/Scripts/activate on Windows
 pip install -r requirements.txt
 
-# Start MongoDB and Redis locally, then:
+# Ensure MongoDB is running (or set MONGO_URI for Atlas), then:
 export SECRET_KEY="dev-secret-key-at-least-32-characters-long"
 export OPENAI_API_KEY="sk-your-openai-key"
 
 # API server
-python wsgi.py
-
-# Celery OCR worker
-celery -A celery_app.celery worker --queues ocr,default --loglevel info
-
-# Celery Evaluation worker
-celery -A celery_app.celery worker --queues evaluation --loglevel info
+python -m flask run --host=0.0.0.0 --port=5000
 ```
+
+Or use `./run.sh` from the project root to start both backend and frontend.
 
 ### Frontend
 

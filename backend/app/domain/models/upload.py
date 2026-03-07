@@ -22,7 +22,7 @@ class UploadedScript(BaseModel):
     exam_id: str = Field(alias="examId")
     upload_batch_id: str = Field(alias="uploadBatchId")
     student_meta: StudentMeta = Field(alias="studentMeta")
-    file_key: str = Field(alias="fileKey")
+    file_key: str | None = Field(default=None, alias="fileKey")  # None when answer script file is not stored
     original_filename: str = Field(alias="originalFilename")
     mime_type: str = Field(alias="mimeType")
     file_size_bytes: int = Field(alias="fileSizeBytes")

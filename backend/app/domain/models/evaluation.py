@@ -58,6 +58,18 @@ class BatchCriterionScores(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ScoringConsistencyResult(BaseModel):
+    """Combined output from Scoring+Consistency merged agent (one LLM call)."""
+    scores: list[CriterionScore] = Field(alias="scores")
+    overall_assessment: ConsistencyAssessment = Field(alias="overallAssessment")
+    adjustments: list["ScoreAdjustment"] = Field(default_factory=list)
+    final_scores: list["FinalCriterionScore"] = Field(alias="finalScores")
+    total_score: float = Field(alias="totalScore")
+    audit_notes: str = Field(default="", alias="auditNotes")
+
+    model_config = {"populate_by_name": True}
+
+
 # ── Consistency Audit ──────────────────────────────────────
 
 class ScoreAdjustment(BaseModel):
@@ -117,6 +129,24 @@ class StudentFeedback(BaseModel):
 # ── Explainability ─────────────────────────────────────────
 
 class ExplainabilityResult(BaseModel):
+    chain_of_reasoning: str = Field(alias="chainOfReasoning")
+    uncertainty_areas: list[str] = Field(alias="uncertaintyAreas")
+    review_recommendation: ReviewRecommendation = Field(alias="reviewRecommendation")
+    review_reason: str = Field(alias="reviewReason")
+    agent_agreement_score: float = Field(alias="agentAgreementScore")
+
+    model_config = {"populate_by_name": True}
+
+
+class FeedbackExplainabilityResult(BaseModel):
+    """Combined output from Feedback+Explainability merged agent (one LLM call)."""
+    # Feedback
+    summary: str
+    strengths: list[str]
+    improvements: list[ImprovementItem]
+    study_recommendations: list[str] = Field(alias="studyRecommendations")
+    encouragement_note: str = Field(alias="encouragementNote")
+    # Explainability
     chain_of_reasoning: str = Field(alias="chainOfReasoning")
     uncertainty_areas: list[str] = Field(alias="uncertaintyAreas")
     review_recommendation: ReviewRecommendation = Field(alias="reviewRecommendation")

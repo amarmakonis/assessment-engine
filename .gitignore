@@ -34,9 +34,6 @@ dist/
 *~
 .DS_Store
 
-# Docker
-docker-compose.override.yml
-
 # Data
 /data/
 *.log

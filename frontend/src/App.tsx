@@ -14,6 +14,7 @@ import { EvaluationPage } from "@/pages/EvaluationPage";
 import { EvaluationsListPage } from "@/pages/EvaluationsListPage";
 import { ReviewQueuePage } from "@/pages/ReviewQueuePage";
 import { ExamPage } from "@/pages/ExamPage";
+import { ReEvaluatePage } from "@/pages/ReEvaluatePage";
 
 function ProtectedLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/exams" element={<ExamPage />} />
             <Route path="/upload" element={<UploadPage />} />
+            <Route path="/re-evaluate" element={<ReEvaluatePage />} />
             <Route path="/scripts" element={<ScriptsPage />} />
             <Route path="/scripts/:scriptId/ocr" element={<OCRReviewPage />} />
             <Route path="/ocr-test" element={<OCRTestingPage />} />

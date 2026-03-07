@@ -77,7 +77,7 @@ export function OCRTestingPage() {
         <p className="text-sm text-gray-500">
           Upload one or both: answer booklet and/or question booklet to verify
           how well the OCR works. This does not affect your production
-          evaluations. Max 10 pages per file for testing.
+          evaluations. All pages are processed and displayed.
         </p>
       </div>
 
@@ -110,7 +110,7 @@ export function OCRTestingPage() {
                     </span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    PDF, PNG, JPG (Max 10 pages)
+                    PDF, PNG, JPG
                   </p>
                 </>
               )}
@@ -152,7 +152,7 @@ export function OCRTestingPage() {
                     </span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    PDF, PNG, JPG (Max 10 pages)
+                    PDF, PNG, JPG
                   </p>
                 </>
               )}
@@ -184,11 +184,11 @@ export function OCRTestingPage() {
 
       {(answerText || questionText || isProcessing) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px] max-h-[70vh]">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-gray-900">Answer OCR Result</h3>
             </div>
-            <div className="p-4 flex-1 bg-gray-50/30 overflow-y-auto font-mono text-sm whitespace-pre-wrap text-gray-700">
+            <div className="p-4 flex-1 min-h-0 overflow-y-auto bg-gray-50/30 font-mono text-sm whitespace-pre-wrap text-gray-700">
               {isProcessing && !answerText ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="w-6 h-6 border-2 border-gray-300 border-t-accent-blue rounded-full animate-spin mr-3" />
@@ -202,13 +202,13 @@ export function OCRTestingPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px] max-h-[70vh]">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-gray-900">
                 Question OCR Result
               </h3>
             </div>
-            <div className="p-4 flex-1 bg-gray-50/30 overflow-y-auto font-mono text-sm whitespace-pre-wrap text-gray-700">
+            <div className="p-4 flex-1 min-h-0 overflow-y-auto bg-gray-50/30 font-mono text-sm whitespace-pre-wrap text-gray-700">
               {isProcessing && questionFile && !questionText ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="w-6 h-6 border-2 border-gray-300 border-t-accent-blue rounded-full animate-spin mr-3" />

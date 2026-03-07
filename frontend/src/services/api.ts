@@ -70,7 +70,10 @@ export const uploadAPI = {
     api.post<{ batchId: string; totalFiles: number; results: { filename: string; uploadedScriptId?: string; status: string; reason?: string }[] }>(
       "/uploads/",
       formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 120000, // 2 min for large file upload
+      }
     ),
   uploadTyped: (data: {
     examId: string;
@@ -107,6 +110,8 @@ export const ocrAPI = {
     ),
   reSegment: (scriptId: string) =>
     api.post(`/ocr/scripts/${scriptId}/re-segment`),
+  reRunOCR: (scriptId: string) =>
+    api.post<{ message: string; scriptId: string }>(`/ocr/scripts/${scriptId}/re-run-ocr`),
   testOCR: (formData: FormData) =>
     api.post<{ text: string }>("/ocr/test", formData),
 };

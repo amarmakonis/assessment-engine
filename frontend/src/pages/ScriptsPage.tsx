@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   FileText,
   Eye,
@@ -29,7 +29,27 @@ import { formatDistanceToNow } from "date-fns";
 
 const TERMINAL_STATUSES = new Set(["EVALUATED", "COMPLETE", "FAILED", "FLAGGED", "IN_REVIEW"]);
 
+/** Human-readable stage for re-evaluation banner */
+function getStageLabel(status: string): string {
+  const map: Record<string, string> = {
+    UPLOADED: "Uploaded",
+    PROCESSING: "OCR",
+    OCR_COMPLETE: "Segmenting",
+    SEGMENTED: "Segmented",
+    EVALUATING: "Evaluating",
+    EVALUATED: "Complete",
+    COMPLETE: "Complete",
+    IN_REVIEW: "Complete — review recommended",
+    FLAGGED: "Flagged",
+    FAILED: "Failed",
+  };
+  return map[status] ?? status;
+}
+
 export function ScriptsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reEvaluatedId = searchParams.get("re-evaluated");
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [scripts, setScripts] = useState<UploadedScript[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,16 +81,27 @@ export function ScriptsPage() {
     loadData();
   }, [loadData]);
 
+  // Auto-refresh when any script is in progress (or when we're tracking a re-evaluation)
   useEffect(() => {
     const hasProcessing = scripts.some((s) => !TERMINAL_STATUSES.has(s.uploadStatus));
-    if (!hasProcessing) return;
+    const trackingReEval = !!reEvaluatedId;
+    if (!hasProcessing && !trackingReEval) return;
     const inOcrOrSegmenting = scripts.some(
       (s) => s.uploadStatus === "PROCESSING" || s.uploadStatus === "OCR_COMPLETE"
     );
     const intervalMs = inOcrOrSegmenting ? 3000 : 5000;
     const interval = setInterval(() => loadData(true), intervalMs);
     return () => clearInterval(interval);
-  }, [scripts, loadData]);
+  }, [scripts, loadData, reEvaluatedId]);
+
+  // Scroll re-evaluated script into view when it appears
+  useEffect(() => {
+    if (!reEvaluatedId || !scripts.some((s) => s.id === reEvaluatedId)) return;
+    const el = cardRefs.current[reEvaluatedId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [reEvaluatedId, scripts]);
 
   function statusIcon(status: string) {
     switch (status) {
@@ -92,6 +123,73 @@ export function ScriptsPage() {
 
   return (
     <div className="space-y-6">
+      {reEvaluatedId && (() => {
+        const reEvalScript = scripts.find((s) => s.id === reEvaluatedId);
+        const stageLabel = reEvalScript ? getStageLabel(reEvalScript.uploadStatus) : null;
+        const isDone = reEvalScript && TERMINAL_STATUSES.has(reEvalScript.uploadStatus);
+        const needsReview = reEvalScript?.uploadStatus === "IN_REVIEW";
+        const isInProgress = reEvalScript && !TERMINAL_STATUSES.has(reEvalScript.uploadStatus);
+        return (
+        <div
+          className={clsx(
+            "flex items-start gap-3 p-4 rounded-xl border text-sm shadow-sm",
+            isInProgress && "border-blue-200 bg-blue-50",
+            isDone && !needsReview && "border-emerald-200 bg-emerald-50",
+            needsReview && "border-amber-200 bg-amber-50"
+          )}
+          role="status"
+        >
+          <div className={clsx(
+            "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+            isInProgress && "bg-blue-100",
+            isDone && !needsReview && "bg-emerald-100",
+            needsReview && "bg-amber-100"
+          )}>
+            {isInProgress ? (
+              <Loader2 className="w-5 h-5 text-accent-blue animate-spin" />
+            ) : needsReview ? (
+              <AlertCircle className="w-5 h-5 text-amber-600" />
+            ) : (
+              <BarChart3 className="w-5 h-5 text-accent-green" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary">
+              {isInProgress
+                ? "Re-evaluation in progress"
+                : needsReview
+                  ? "Re-evaluation finished — review recommended"
+                  : "Re-evaluation complete"}
+            </p>
+            {stageLabel && (
+              <p className={clsx(
+                "font-medium mt-1",
+                isInProgress ? "text-accent-blue" : needsReview ? "text-amber-700" : "text-accent-green"
+              )}>
+                Current stage: {stageLabel}
+              </p>
+            )}
+            <p className="text-text-secondary mt-0.5">
+              {isInProgress
+                ? "Pipeline is running from segmentation → evaluation. This page auto-refreshes. When done, open Results below."
+                : needsReview
+                  ? "Some answers need human review. Open Results to see which questions."
+                  : "Open Results below to view scores."}
+            </p>
+            <button
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete("re-evaluated");
+                setSearchParams(next);
+              }}
+              className="mt-2 text-accent-blue hover:underline font-medium text-sm"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+        );
+      })()}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="page-title flex items-center gap-2">
@@ -143,7 +241,12 @@ export function ScriptsPage() {
       ) : (
         <div className="space-y-3">
           {scripts.map((s) => (
-            <GlassCard key={s.id} hover className="!p-0 overflow-hidden">
+            <div
+              key={s.id}
+              ref={(el) => { cardRefs.current[s.id] = el; }}
+              className={clsx(reEvaluatedId === s.id && "ring-2 ring-accent-blue ring-offset-2 rounded-xl")}
+            >
+            <GlassCard hover className="!p-0 overflow-hidden">
               <div className="p-4">
                 <div className="flex items-start gap-4">
                   <div className="relative flex-shrink-0">
@@ -226,6 +329,7 @@ export function ScriptsPage() {
                 </div>
               </div>
             </GlassCard>
+            </div>
           ))}
         </div>
       )}

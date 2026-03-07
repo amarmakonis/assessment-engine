@@ -8,6 +8,7 @@ import logging
 
 from flask import Flask, jsonify
 from pydantic import ValidationError as PydanticValidationError
+from pymongo.errors import OperationFailure
 from werkzeug.exceptions import HTTPException
 
 from app.common.exceptions import AAEError, RateLimitError
@@ -34,6 +35,20 @@ def register_error_handlers(app: Flask) -> None:
                 "details": exc.errors(),
             }
         }), 422
+
+    @app.errorhandler(OperationFailure)
+    def handle_mongo_operation_failure(exc: OperationFailure):
+        msg = str(exc)
+        if "space quota" in msg.lower() or "8000" in str(getattr(exc, "details", {})):
+            return jsonify({
+                "error": {
+                    "code": "STORAGE_QUOTA_EXCEEDED",
+                    "message": "Database storage limit reached. Free up space in MongoDB Atlas or use a larger cluster.",
+                }
+            }), 507
+        return jsonify({
+            "error": {"code": "DATABASE_ERROR", "message": msg or "Database operation failed"},
+        }), 500
 
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):

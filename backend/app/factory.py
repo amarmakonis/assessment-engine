@@ -57,9 +57,12 @@ def _init_logging(s: AppSettings) -> None:
     root.addHandler(handler)
     root.setLevel(getattr(logging, s.LOG_LEVEL.upper(), logging.INFO))
 
+    # Suppress werkzeug HTTP request logs (GET /api/v1/... 200)
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
 
 def _init_extensions(app: Flask, s: AppSettings) -> None:
-    from app.extensions import cors, init_mongo, init_redis, jwt, smorest_api
+    from app.extensions import cors, init_mongo, jwt, smorest_api
 
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
     jwt.init_app(app)
@@ -70,7 +73,10 @@ def _init_extensions(app: Flask, s: AppSettings) -> None:
         maxPoolSize=s.MONGO_MAX_POOL_SIZE,
         minPoolSize=s.MONGO_MIN_POOL_SIZE,
     )
-    init_redis(s.REDIS_URL)
+
+    if s.USE_CELERY_REDIS:
+        from app.extensions import init_redis
+        init_redis(s.REDIS_URL)
 
 
 def _register_blueprints(app: Flask) -> None:

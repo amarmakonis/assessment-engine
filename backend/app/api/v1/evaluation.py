@@ -366,8 +366,15 @@ class ReEvaluateView(MethodView):
 
         ScriptRepository().update_one(script_id, {"$set": {"status": "EVALUATING"}})
 
-        for qid in question_ids:
-            evaluate_question.delay(script_id, qid, run_id, trace_id)
+        from app.config import get_settings
+        if get_settings().USE_CELERY_REDIS:
+            from app.tasks.evaluation import evaluate_question
+            for qid in question_ids:
+                evaluate_question.delay(script_id, qid, run_id, trace_id)
+        else:
+            from app.services.sync_pipeline import run_evaluate_question
+            for qid in question_ids:
+                run_evaluate_question(script_id, qid, run_id, trace_id)
 
         return {
             "message": "Re-evaluation triggered",

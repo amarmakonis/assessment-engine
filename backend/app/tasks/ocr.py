@@ -360,7 +360,6 @@ def _recover_answers_from_unmapped(seg_result: dict, question_ids: list[str]) ->
         current = (entry.get("answerText") or "").strip()
         if current:
             continue  # already has an answer
-        # Text for this answer: from end of this marker to start of next marker or end
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(unmapped)
         block = unmapped[start:end].strip()

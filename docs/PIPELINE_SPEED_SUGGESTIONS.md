@@ -7,30 +7,40 @@ The full pipeline for a multi-page script is roughly:
 3. **Aggregate** – wait for all pages, then one task
 4. **Segmentation** – one LLM call on full OCR text
 5. **Prepare script** – DB + fan-out
-6. **Evaluation** – M × `evaluate_question` in parallel; each question does 5 sequential LLM calls (rubric → scoring → consistency → feedback → explainability)
+6. **Evaluation** – M × `evaluate_question` in parallel; each question does **3 sequential LLM calls** when `USE_MERGED_AGENTS=true` (default): rubric → scoring+consistency → feedback+explainability. Set `USE_MERGED_AGENTS=false` for legacy 5-agent flow.
 
 Below are **concrete suggestions** to reduce end-to-end time, in order of impact vs effort.
+
+---
+
+## 0. Merged agents (implemented)
+
+- **Effect:** Evaluation uses **3 LLM calls per question** (default) instead of 5: rubric → scoring+consistency → feedback+explainability.
+- **Config:** `USE_MERGED_AGENTS=true` (default). Set to `false` for legacy 5-agent flow.
 
 ---
 
 ## 1. Run more Celery workers / higher concurrency (high impact)
 
 - **Current:** One worker process with default concurrency (often = CPU count), serving both `ocr` and `evaluation` queues.
-- **Effect:** With 30+ pages, many OCR tasks sit in the queue; then many evaluation tasks sit in the queue. More workers = more tasks run at once = lower wall-clock time.
+- **Effect:** Each worker evaluates different questions in parallel. Same per-question time, but higher throughput. Set `CELERY_WORKER_CONCURRENCY=8` (default 4) in `.env`.
 - **Options:**
-  - **A. Single worker, higher concurrency**  
-    In `run.sh` (or wherever you start Celery):
+  - **A. run_celery.sh (recommended)**  
     ```bash
-    celery -A celery_app:celery worker -Q ocr,evaluation,default -l info --concurrency=12
+    CELERY_WORKER_CONCURRENCY=8 ./run_celery.sh
+    ```
+  - **B. Single worker, higher concurrency**  
+    ```bash
+    celery -A celery_app.celery worker -Q ocr,evaluation,default -l info --concurrency=12
     ```
     (Use a number that fits your machine and API rate limits.)
-  - **B. Separate workers per queue (recommended)**  
+  - **C. Separate workers per queue**  
     Run two workers so OCR and evaluation don’t compete:
     ```bash
-    celery -A celery_app:celery worker -Q ocr -l info --concurrency=8 &
-    celery -A celery_app:celery worker -Q evaluation,default -l info --concurrency=8 &
+    celery -A celery_app.celery worker -Q ocr -l info --concurrency=8 &
+    celery -A celery_app.celery worker -Q evaluation -l info --concurrency=8 &
     ```
-  - **C. Multiple machines:** Run more workers on more machines, all pointing at the same broker/backend.
+  - **D. Multiple machines:** Run more workers on more machines, all pointing at the same broker/backend.
 
 ---
 

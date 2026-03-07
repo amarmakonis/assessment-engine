@@ -188,8 +188,10 @@ def evaluate_question(
         ConsistencyAgent,
         ExplainabilityAgent,
         FeedbackAgent,
+        FeedbackExplainabilityAgent,
         RubricGroundingAgent,
         ScoringAgent,
+        ScoringConsistencyAgent,
     )
 
     idempotency_key = f"{run_id}:{script_id}:{question_id}:{EVALUATION_VERSION}"
@@ -271,89 +273,130 @@ def evaluate_question(
                 c.max_marks = round(c.max_marks * scale, 2)
             grounded_rubric.total_marks = question_max_marks
 
-        # ── Agent 2: Scoring (per criterion) ───────────────
-        # Pass criteria in fixed order (by criterionId) for deterministic scoring
-        sorted_criteria = sorted(
-            grounded_rubric.criteria, key=lambda c: c.criterion_id
-        )
-        scoring_agent = ScoringAgent()
-        criterion_scores, scoring_metas = scoring_agent.score_all_criteria(
-            trace_id=trace_id,
-            answer_text=answer_text,
-            grounded_criteria=[c.model_dump(by_alias=True) for c in sorted_criteria],
-            question_text=question_text,
-        )
-        for m in scoring_metas:
-            total_prompt_tokens += m["prompt_tokens"]
-            total_completion_tokens += m["completion_tokens"]
-
-        # ── Agent 3: Consistency Check ─────────────────────
-        # Pass scores in fixed order (by criterionId) for deterministic audit
-        sorted_scores = sorted(criterion_scores, key=lambda s: s.criterion_id)
-        consistency_agent = ConsistencyAgent()
-        consistency_audit, consistency_meta = consistency_agent.execute(
-            trace_id=trace_id,
-            answer_text=answer_text,
-            rubric=grounded_rubric.model_dump(by_alias=True),
-            criterion_scores=[s.model_dump(by_alias=True) for s in sorted_scores],
-            question_text=question_text,
-            max_tokens=eval_max_tokens,
-        )
-        total_prompt_tokens += consistency_meta["prompt_tokens"]
-        total_completion_tokens += consistency_meta["completion_tokens"]
-
         max_score = grounded_rubric.total_marks
+        use_merged = getattr(get_settings(), "USE_MERGED_AGENTS", True)
 
-        # Build a lookup from the consistency audit's final scores
-        final_score_map = {
-            fs.criterion_id: fs.final_score
-            for fs in consistency_audit.final_scores
-        }
+        if use_merged:
+            # Merged flow: 3 LLM calls (rubric + scoring+consistency + feedback+explainability)
+            sorted_criteria = sorted(
+                grounded_rubric.criteria, key=lambda c: c.criterion_id
+            )
+            sc_agent = ScoringConsistencyAgent()
+            sc_result, sc_meta = sc_agent.execute(
+                trace_id=trace_id,
+                answer_text=answer_text,
+                rubric=grounded_rubric.model_dump(by_alias=True),
+                grounded_criteria=[c.model_dump(by_alias=True) for c in sorted_criteria],
+                question_text=question_text,
+                max_tokens=eval_max_tokens,
+            )
+            total_prompt_tokens += sc_meta["prompt_tokens"]
+            total_completion_tokens += sc_meta["completion_tokens"]
 
-        # Merge consistency-adjusted scores back into criterion_scores
-        for cs in criterion_scores:
-            if cs.criterion_id in final_score_map:
-                cs.marks_awarded = final_score_map[cs.criterion_id]
+            criterion_scores = sorted(sc_result.scores, key=lambda s: s.criterion_id)
+            consistency_audit = sc_agent.to_consistency_audit(sc_result)
+            total_score = round(
+                sum(fs.final_score for fs in consistency_audit.final_scores), 4
+            )
+            consistency_audit.total_score = total_score
 
-        # Never trust LLM arithmetic — compute total from the actual values
-        total_score = round(
-            sum(fs.final_score for fs in consistency_audit.final_scores), 4
-        )
-        consistency_audit.total_score = total_score
+            final_score_map = {
+                fs.criterion_id: fs.final_score
+                for fs in consistency_audit.final_scores
+            }
+            for cs in criterion_scores:
+                if cs.criterion_id in final_score_map:
+                    cs.marks_awarded = final_score_map[cs.criterion_id]
 
-        # ── Agent 4: Feedback ──────────────────────────────
-        sorted_final = sorted(
-            consistency_audit.final_scores, key=lambda fs: fs.criterion_id
-        )
-        feedback_agent = FeedbackAgent()
-        feedback, feedback_meta = feedback_agent.execute(
-            trace_id=trace_id,
-            question_text=question_text,
-            answer_text=answer_text,
-            final_scores=[fs.model_dump(by_alias=True) for fs in sorted_final],
-            total_score=total_score,
-            max_score=max_score,
-            max_tokens=eval_max_tokens,
-        )
-        total_prompt_tokens += feedback_meta["prompt_tokens"]
-        total_completion_tokens += feedback_meta["completion_tokens"]
+            fe_agent = FeedbackExplainabilityAgent()
+            fe_result, fe_meta = fe_agent.execute(
+                trace_id=trace_id,
+                question_text=question_text,
+                answer_text=answer_text,
+                grounded_rubric=grounded_rubric.model_dump(by_alias=True),
+                criterion_scores=[s.model_dump(by_alias=True) for s in criterion_scores],
+                consistency_audit=consistency_audit.model_dump(by_alias=True),
+                total_score=total_score,
+                max_score=max_score,
+                max_tokens=eval_max_tokens,
+            )
+            total_prompt_tokens += fe_meta["prompt_tokens"]
+            total_completion_tokens += fe_meta["completion_tokens"]
+            feedback = fe_agent.to_feedback(fe_result)
+            explainability = fe_agent.to_explainability(fe_result)
+        else:
+            # Legacy flow: 5 LLM calls
+            sorted_criteria = sorted(
+                grounded_rubric.criteria, key=lambda c: c.criterion_id
+            )
+            scoring_agent = ScoringAgent()
+            criterion_scores, scoring_metas = scoring_agent.score_all_criteria(
+                trace_id=trace_id,
+                answer_text=answer_text,
+                grounded_criteria=[c.model_dump(by_alias=True) for c in sorted_criteria],
+                question_text=question_text,
+            )
+            for m in scoring_metas:
+                total_prompt_tokens += m["prompt_tokens"]
+                total_completion_tokens += m["completion_tokens"]
 
-        # ── Agent 5: Explainability ────────────────────────
-        explain_agent = ExplainabilityAgent()
-        explainability, explain_meta = explain_agent.execute(
-            trace_id=trace_id,
-            question_text=question_text,
-            answer_text=answer_text,
-            grounded_rubric=grounded_rubric.model_dump(by_alias=True),
-            criterion_scores=[s.model_dump(by_alias=True) for s in criterion_scores],
-            consistency_audit=consistency_audit.model_dump(by_alias=True),
-            feedback=feedback.model_dump(by_alias=True),
-            total_score=total_score,
-            max_score=max_score,
-            max_tokens=eval_max_tokens,
-        )
-        total_prompt_tokens += explain_meta["prompt_tokens"]
-        total_completion_tokens += explain_meta["completion_tokens"]
+            sorted_scores = sorted(criterion_scores, key=lambda s: s.criterion_id)
+            consistency_agent = ConsistencyAgent()
+            consistency_audit, consistency_meta = consistency_agent.execute(
+                trace_id=trace_id,
+                answer_text=answer_text,
+                rubric=grounded_rubric.model_dump(by_alias=True),
+                criterion_scores=[s.model_dump(by_alias=True) for s in sorted_scores],
+                question_text=question_text,
+                max_tokens=eval_max_tokens,
+            )
+            total_prompt_tokens += consistency_meta["prompt_tokens"]
+            total_completion_tokens += consistency_meta["completion_tokens"]
+
+            final_score_map = {
+                fs.criterion_id: fs.final_score
+                for fs in consistency_audit.final_scores
+            }
+            for cs in criterion_scores:
+                if cs.criterion_id in final_score_map:
+                    cs.marks_awarded = final_score_map[cs.criterion_id]
+
+            total_score = round(
+                sum(fs.final_score for fs in consistency_audit.final_scores), 4
+            )
+            consistency_audit.total_score = total_score
+
+            sorted_final = sorted(
+                consistency_audit.final_scores, key=lambda fs: fs.criterion_id
+            )
+            feedback_agent = FeedbackAgent()
+            feedback, feedback_meta = feedback_agent.execute(
+                trace_id=trace_id,
+                question_text=question_text,
+                answer_text=answer_text,
+                final_scores=[fs.model_dump(by_alias=True) for fs in sorted_final],
+                total_score=total_score,
+                max_score=max_score,
+                max_tokens=eval_max_tokens,
+            )
+            total_prompt_tokens += feedback_meta["prompt_tokens"]
+            total_completion_tokens += feedback_meta["completion_tokens"]
+
+            explain_agent = ExplainabilityAgent()
+            explainability, explain_meta = explain_agent.execute(
+                trace_id=trace_id,
+                question_text=question_text,
+                answer_text=answer_text,
+                grounded_rubric=grounded_rubric.model_dump(by_alias=True),
+                criterion_scores=[s.model_dump(by_alias=True) for s in criterion_scores],
+                consistency_audit=consistency_audit.model_dump(by_alias=True),
+                feedback=feedback.model_dump(by_alias=True),
+                total_score=total_score,
+                max_score=max_score,
+                max_tokens=eval_max_tokens,
+            )
+            total_prompt_tokens += explain_meta["prompt_tokens"]
+            total_completion_tokens += explain_meta["completion_tokens"]
 
         elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
         percentage = (total_score / max_score * 100) if max_score > 0 else 0

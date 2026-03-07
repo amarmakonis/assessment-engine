@@ -88,6 +88,11 @@ class OCRPageResultRepository(BaseRepository):
             limit=200,
         )
 
+    def delete_many_by_uploaded_script(self, uploaded_script_id: str) -> int:
+        """Remove all OCR page results for an uploaded script (e.g. before re-running OCR)."""
+        result = self.collection.delete_many({"uploadedScriptId": uploaded_script_id})
+        return result.deleted_count
+
 
 class ScriptRepository(BaseRepository):
     collection_name = "scripts"

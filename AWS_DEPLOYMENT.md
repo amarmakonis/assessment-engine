@@ -1,6 +1,30 @@
 # Deploy Assessment Engine on AWS (Free Tier)
 
-This guide deploys the full stack on a single **EC2** instance using Docker Compose. Use **MongoDB Atlas** (free) for the database to stay within free tier limits.
+This guide deploys the app on a single **EC2** instance **without Docker**. Use **MongoDB Atlas** (free) for the database and run the backend with **Gunicorn** and the frontend as static files behind **Nginx**.
+
+---
+
+## Current project layout (no Docker)
+
+```
+Assessment Engine/
+├── backend/                 # Flask + Celery (optional)
+│   ├── app/
+│   ├── requirements.txt
+│   ├── wsgi.py
+│   └── .env                 # optional; .env at project root is used too
+├── frontend/                # Vite + React
+│   ├── src/
+│   ├── dist/                # created by npm run build (deploy this)
+│   └── package.json
+├── deploy/
+│   └── deploy.sh           # builds frontend for production
+├── .env                     # production env (create from .env.production.example)
+├── .env.production.example
+└── AWS_DEPLOYMENT.md        # this file
+```
+
+Backend reads `.env` from **project root** or `backend/.env`. Frontend is built to `frontend/dist` and served by Nginx.
 
 ---
 
@@ -8,15 +32,13 @@ This guide deploys the full stack on a single **EC2** instance using Docker Comp
 
 | Step | Where | Action |
 |------|--------|--------|
-| 1 | MongoDB Atlas | Create cluster, user, allow `0.0.0.0/0` (or EC2 IP), get URI with DB name: `.../aae_db?retryWrites=...` |
+| 1 | MongoDB Atlas | Create cluster, user, allow `0.0.0.0/0` (or EC2 IP), get URI: `.../aae_db?retryWrites=...` |
 | 2 | AWS EC2 | Launch Ubuntu 22.04, open 22 (SSH), 80 (HTTP), 443 (HTTPS optional) |
-| 3 | EC2 | Install Docker + Docker Compose, add user to `docker` group |
-| 4 | Local | Build frontend: `cd frontend && npm ci && npm run build`; push to Git or SCP project to EC2 |
-| 5 | EC2 | Copy `.env.production.example` to `.env`, set `SECRET_KEY`, `MONGO_URI`, `OPENAI_API_KEY` |
-| 6 | EC2 | `docker compose -f docker-compose.production.yml up -d --build` |
+| 3 | EC2 | Install Python 3.12, Node 20, nginx, **Redis** |
+| 4 | Local | Build frontend: `cd frontend && npm ci && npm run build`; push to Git or SCP to EC2 |
+| 5 | EC2 | Copy `.env.production.example` to `.env` at **project root**, set `SECRET_KEY`, `MONGO_URI`, `OPENAI_API_KEY`, `STORAGE_PROVIDER=local`, `LOCAL_STORAGE_PATH`; keep `USE_CELERY_REDIS=true` and Redis URLs |
+| 6 | EC2 | Run backend (gunicorn), **Celery workers** (OCR + evaluation queues), serve frontend with nginx |
 | 7 | Browser | Open `http://YOUR_EC2_PUBLIC_IP` |
-
-**To deploy updates later:** on EC2 run `git pull`, rebuild frontend, then `docker compose -f docker-compose.production.yml up -d --build` (or `./deploy/deploy.sh`).
 
 ---
 
@@ -59,7 +81,7 @@ This guide deploys the full stack on a single **EC2** instance using Docker Comp
 
 ---
 
-## Step 3: Connect and Install Docker
+## Step 3: Connect and Install Dependencies
 
 SSH into the instance:
 
@@ -68,34 +90,31 @@ chmod 400 your-key.pem
 ssh -i your-key.pem ubuntu@YOUR_EC2_PUBLIC_IP
 ```
 
-Install Docker and Docker Compose:
+Install Python 3.12, Node 20, nginx, Redis, and gunicorn:
 
 ```bash
 sudo apt update
-sudo apt install -y docker.io docker-compose-v2 git
-sudo usermod -aG docker ubuntu
-newgrp docker
+sudo apt install -y python3.12 python3.12-venv python3-pip nodejs npm nginx redis-server
+
+# Install Node 20 (if Ubuntu ships older version)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+sudo apt install -y git
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
 ```
 
 ---
 
 ## Step 4: Clone Project and Build Frontend
 
-On your **local machine**:
-
-```bash
-cd "/home/amar-singh/Desktop/Makonis/Projects/Assessment Engine"
-
-# Build React frontend
-cd frontend && npm ci && npm run build && cd ..
-# Output: frontend/dist/
-```
-
-Then either:
-
 **Option A: Push to GitHub and clone on EC2**
 
+On your local machine:
+
 ```bash
+cd "/path/to/Assessment Engine"
 git init && git add . && git commit -m "Deploy"
 git remote add origin https://github.com/YOUR_USERNAME/assessment-engine.git
 git push -u origin main
@@ -111,15 +130,23 @@ cd assessment-engine
 **Option B: SCP the project to EC2**
 
 ```bash
-scp -i your-key.pem -r "/home/amar-singh/Desktop/Makonis/Projects/Assessment Engine" ubuntu@YOUR_EC2_IP:~/assessment-engine
+scp -i your-key.pem -r "/path/to/Assessment Engine" ubuntu@YOUR_EC2_IP:~/assessment-engine
 ```
 
 On EC2:
 
 ```bash
 cd ~/assessment-engine
-# If you used SCP and frontend wasn't built, build on EC2:
-# cd frontend && npm ci && npm run build && cd ..
+```
+
+Build frontend:
+
+```bash
+cd frontend
+npm ci
+npm run build
+cd ..
+# Output: frontend/dist/
 ```
 
 ---
@@ -138,7 +165,7 @@ cp .env.production.example .env
 nano .env
 ```
 
-Set:
+Set (production with Redis + Celery):
 
 ```
 SECRET_KEY=<run: openssl rand -hex 32>
@@ -147,30 +174,185 @@ OPENAI_API_KEY=sk-...
 JWT_SECRET_KEY=<same as SECRET_KEY or leave empty>
 ENVIRONMENT=production
 DEBUG=false
+USE_CELERY_REDIS=true
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/1
+CELERY_RESULT_BACKEND=redis://localhost:6379/2
+STORAGE_PROVIDER=local
+LOCAL_STORAGE_PATH=/var/lib/aae/uploads
+LOG_LEVEL=INFO
+```
+
+Optional: `OPENAI_MODEL=gpt-4o-mini`, `OPENAI_MODEL_VISION=gpt-4o` (defaults). To run without Celery, set `USE_CELERY_REDIS=false` (sync mode).
+
+Create uploads dir:
+
+```bash
+sudo mkdir -p /var/lib/aae/uploads
+sudo chown ubuntu:ubuntu /var/lib/aae/uploads
 ```
 
 Save and exit (Ctrl+X, Y, Enter).
 
 ---
 
-## Step 6: Deploy with Docker Compose
+## Step 6: Set Up Backend (gunicorn)
+
+On EC2:
 
 ```bash
-cd ~/assessment-engine
+cd ~/assessment-engine/backend
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt gunicorn
+```
 
-# Ensure frontend is built
-[ -d frontend/dist ] || (cd frontend && npm ci && npm run build && cd ..)
+Create a systemd service so the backend runs on boot:
 
-# Start all services
-docker compose -f docker-compose.production.yml up -d --build
+```bash
+sudo nano /etc/systemd/system/aae-backend.service
+```
 
-# Check status
-docker compose -f docker-compose.production.yml ps
+Content:
+
+```ini
+[Unit]
+Description=Assessment Engine Backend
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/assessment-engine/backend
+Environment="PATH=/home/ubuntu/assessment-engine/backend/venv/bin"
+ExecStart=/home/ubuntu/assessment-engine/backend/venv/bin/gunicorn -w 2 -b 127.0.0.1:5000 wsgi:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable aae-backend
+sudo systemctl start aae-backend
+sudo systemctl status aae-backend
 ```
 
 ---
 
-## Step 7: Access Your App
+## Step 6b: Set Up Celery Workers (Redis)
+
+Production uses two Celery workers: one for OCR, one for evaluation. Create two systemd services.
+
+**OCR worker** (ingest, PDF split, page OCR, aggregate, segment):
+
+```bash
+sudo nano /etc/systemd/system/aae-celery-ocr.service
+```
+
+```ini
+[Unit]
+Description=Assessment Engine Celery OCR Worker
+After=network.target redis-server.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/assessment-engine/backend
+Environment="PATH=/home/ubuntu/assessment-engine/backend/venv/bin"
+EnvironmentFile=/home/ubuntu/assessment-engine/.env
+ExecStart=/home/ubuntu/assessment-engine/backend/venv/bin/celery -A celery_app.celery worker -Q ocr,default -l info --concurrency=4
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Evaluation worker** (prepare_script, evaluate_question):
+
+```bash
+sudo nano /etc/systemd/system/aae-celery-evaluation.service
+```
+
+```ini
+[Unit]
+Description=Assessment Engine Celery Evaluation Worker
+After=network.target redis-server.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/assessment-engine/backend
+Environment="PATH=/home/ubuntu/assessment-engine/backend/venv/bin"
+EnvironmentFile=/home/ubuntu/assessment-engine/.env
+ExecStart=/home/ubuntu/assessment-engine/backend/venv/bin/celery -A celery_app.celery worker -Q evaluation -l info --concurrency=4
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start both:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable aae-celery-ocr aae-celery-evaluation
+sudo systemctl start aae-celery-ocr aae-celery-evaluation
+sudo systemctl status aae-celery-ocr aae-celery-evaluation
+```
+
+If your `.env` is not at project root or systemd does not load it, replace `EnvironmentFile=...` with explicit `Environment="KEY=value"` lines for `MONGO_URI`, `OPENAI_API_KEY`, `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, etc.
+
+---
+
+## Step 7: Configure Nginx
+
+```bash
+sudo nano /etc/nginx/sites-available/aae
+```
+
+Content:
+
+```nginx
+server {
+    listen 80 default_server;
+    server_name _;
+
+    root /home/ubuntu/assessment-engine/frontend/dist;
+    index index.html;
+    try_files $uri $uri/ /index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 50M;
+    }
+
+    location /api/docs/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+Enable and reload:
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/aae /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+---
+
+## Step 8: Access Your App
 
 Open in a browser:
 
@@ -184,16 +366,15 @@ Create an account via Sign Up and start using the app.
 
 ## Optional: Domain + HTTPS
 
-1. Get a domain (e.g. from Route 53 or another provider)
-2. Point the domain to your EC2 public IP
-3. Install Certbot for Let's Encrypt:
+1. Point a domain to your EC2 public IP
+2. Install Certbot for Let's Encrypt:
 
    ```bash
    sudo apt install certbot python3-certbot-nginx
    sudo certbot --nginx -d yourdomain.com
    ```
 
-4. Update Nginx config to use the certbot-managed config, or keep Certbot’s auto-generated config.
+3. Certbot will update the Nginx config for HTTPS.
 
 ---
 
@@ -201,38 +382,33 @@ Create an account via Sign Up and start using the app.
 
 | Issue | Fix |
 |-------|-----|
-| 502 Bad Gateway | `docker compose logs backend` — check Flask is up |
-| Celery not processing | `docker compose logs celery` — ensure Redis and broker URL are correct |
+| 502 Bad Gateway | `sudo systemctl status aae-backend` — check Flask is up; `sudo journalctl -u aae-backend -f` for logs |
 | MongoDB connection failed | Verify Atlas IP allowlist includes EC2 IP or `0.0.0.0/0` |
 | Out of memory | Use `t3.small` or larger; ensure MongoDB Atlas is used (not local Mongo) |
 
 ---
 
-## Performance: Multi-page PDFs and evaluation time
+## Update Deployment
 
-Multi-page scripts take longer because: (1) each page is sent to OpenAI Vision for OCR, and (2) each question runs several LLM steps (rubric, scoring, consistency, feedback, explainability). The pipeline already runs **OCR pages in parallel** and **evaluation per question in parallel**; throughput is limited by Celery worker concurrency.
-
-- **Celery concurrency** is set to `6` in `docker-compose.production.yml` so more tasks run at once. On a larger instance (e.g. 4 vCPU), you can raise it: edit the `celery` service command to `--concurrency=8` (or 10) and restart.
-- **Instance size**: For many scripts or long exams, use at least `t3.small` (2 vCPU, 2 GB RAM). Prefer `t3.medium` if you run with higher concurrency.
-- **Rate limits**: If you hit OpenAI rate limits, lower concurrency or add backoff; the app already uses retries.
-
----
-
-## Update Deployment (deploy your latest changes)
-
-Run this on the EC2 instance whenever you want to deploy new code:
+Run on EC2 when you deploy new code:
 
 ```bash
 cd ~/assessment-engine
 git pull
 cd frontend && npm ci && npm run build && cd ..
-docker compose -f docker-compose.production.yml up -d --build
+sudo systemctl restart aae-backend aae-celery-ocr aae-celery-evaluation
 ```
 
-Or use the deploy script:
+---
 
-```bash
-cd ~/assessment-engine
-git pull
-./deploy/deploy.sh
-```
+## Summary
+
+| Component     | On AWS                          |
+|--------------|----------------------------------|
+| App server   | Single EC2 (Ubuntu 22.04)        |
+| Database     | MongoDB Atlas (free tier)        |
+| Backend      | Gunicorn (Flask), no Docker      |
+| Queue        | Redis on EC2 (Celery broker)    |
+| Workers      | Celery OCR + Evaluation (systemd)|
+| Frontend     | Nginx serving `frontend/dist`    |
+| Config       | `.env` at project root, `USE_CELERY_REDIS=true` |

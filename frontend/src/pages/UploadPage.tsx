@@ -47,6 +47,7 @@ export function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [typedAnswers, setTypedAnswers] = useState<Record<string, string>>({});
   const [uploadMode, setUploadMode] = useState<UploadMode>("file");
+  const [storeFileForTuning, setStoreFileForTuning] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[]>([]);
 
@@ -97,6 +98,7 @@ export function UploadPage() {
       formData.append("examId", examId);
       formData.append("studentName", studentName);
       formData.append("studentRollNo", studentRoll);
+      if (storeFileForTuning) formData.append("storeFile", "true");
       files.forEach((f) => formData.append("files", f));
 
       try {
@@ -105,8 +107,18 @@ export function UploadPage() {
         const accepted = data.results.filter((r) => r.status === "ACCEPTED").length;
         toast.success(`${accepted}/${data.totalFiles} files uploaded successfully`);
         setFiles([]);
-      } catch {
-        toast.error("Upload failed");
+      } catch (err: unknown) {
+        const ax = err as { response?: { status?: number; data?: { error?: { message?: string }; message?: string } } };
+        const status = ax.response?.status;
+        const errBody = ax.response?.data?.error ?? ax.response?.data;
+        const msg = errBody?.message ?? ax.response?.data?.message;
+        if (status === 502) {
+          toast.error("Upload failed: server took too long. Processing may still be running — check Scripts page.");
+        } else if (status === 507 || (msg && String(msg).toLowerCase().includes("storage") && String(msg).toLowerCase().includes("quota"))) {
+          toast.error("Database storage limit reached. Free up space in MongoDB Atlas or use a larger cluster.");
+        } else {
+          toast.error(msg && typeof msg === "string" ? msg : "Upload failed");
+        }
       } finally {
         setUploading(false);
       }
@@ -273,6 +285,20 @@ export function UploadPage() {
               />
             </div>
           </div>
+
+          {uploadMode === "file" && (
+            <label className="flex items-center gap-2 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={storeFileForTuning}
+                onChange={(e) => setStoreFileForTuning(e.target.checked)}
+                className="rounded border-border"
+              />
+              <span className="text-sm text-text-secondary">
+                Store this script for tuning (enables re-run OCR and re-segment without re-uploading)
+              </span>
+            </label>
+          )}
 
           <div className="flex gap-2 mb-6">
             <button

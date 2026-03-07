@@ -26,7 +26,9 @@ export function OCRReviewPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [signedUrl, setSignedUrl] = useState("");
+  const [hasStoredFile, setHasStoredFile] = useState(false);
   const [reSegmenting, setReSegmenting] = useState(false);
+  const [reRunningOCR, setReRunningOCR] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [imgError, setImgError] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -34,15 +36,21 @@ export function OCRReviewPage() {
   useEffect(() => {
     if (!scriptId) return;
     setLoading(true);
-    Promise.all([
-      ocrAPI.getPages(scriptId),
-      ocrAPI.getSignedUrl(scriptId),
-    ])
-      .then(([pagesRes, urlRes]) => {
+    ocrAPI
+      .getPages(scriptId)
+      .then((pagesRes) => {
         setPages(pagesRes.data.pages);
-        setSignedUrl(urlRes.data.signedUrl);
+        return ocrAPI.getSignedUrl(scriptId);
       })
-      .catch(() => toast.error("Failed to load OCR data"))
+      .then((urlRes) => {
+        setSignedUrl(urlRes.data.signedUrl);
+        setHasStoredFile(true);
+      })
+      .catch((err) => {
+        if (err?.response?.status !== 404) toast.error("Failed to load OCR data");
+        setSignedUrl("");
+        setHasStoredFile(false);
+      })
       .finally(() => setLoading(false));
   }, [scriptId]);
 
@@ -60,6 +68,21 @@ export function OCRReviewPage() {
       toast.error("Failed to trigger re-segmentation");
     } finally {
       setReSegmenting(false);
+    }
+  }
+
+  async function handleReRunOCR() {
+    if (!scriptId) return;
+    setReRunningOCR(true);
+    try {
+      await ocrAPI.reRunOCR(scriptId);
+      toast.success("Re-run OCR started — check upload status; refresh this page when done");
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: { message?: string } } } };
+      const msg = ax.response?.data?.error?.message ?? "Failed to start re-run OCR";
+      toast.error(msg);
+    } finally {
+      setReRunningOCR(false);
     }
   }
 
@@ -98,14 +121,27 @@ export function OCRReviewPage() {
             Review extracted text from the original document
           </p>
         </div>
-        <button
-          onClick={handleReSegment}
-          disabled={reSegmenting}
-          className="btn-secondary flex items-center gap-2 text-sm"
-        >
-          <RefreshCw className={clsx("w-4 h-4", reSegmenting && "animate-spin")} />
-          Re-Segment
-        </button>
+        <div className="flex items-center gap-2">
+          {hasStoredFile && (
+            <button
+              onClick={handleReRunOCR}
+              disabled={reRunningOCR}
+              className="btn-secondary flex items-center gap-2 text-sm"
+              title="Re-run OCR from stored file (e.g. after changing OCR settings)"
+            >
+              <RefreshCw className={clsx("w-4 h-4", reRunningOCR && "animate-spin")} />
+              Re-run OCR
+            </button>
+          )}
+          <button
+            onClick={handleReSegment}
+            disabled={reSegmenting}
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            <RefreshCw className={clsx("w-4 h-4", reSegmenting && "animate-spin")} />
+            Re-Segment
+          </button>
+        </div>
       </div>
 
       {page && (

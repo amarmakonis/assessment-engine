@@ -5,6 +5,7 @@ OCR review endpoints — page results, text editing, segmentation re-run.
 from __future__ import annotations
 
 import logging
+import uuid
 
 from flask import request
 from flask.views import MethodView
@@ -17,6 +18,7 @@ from app.api.middleware.auth import (
     jwt_required,
 )
 from app.common.exceptions import NotFoundError, ValidationError
+from app.domain.models.common import UploadStatus
 from app.infrastructure.db.repositories import (
     OCRPageResultRepository,
     UploadedScriptRepository,
@@ -100,13 +102,17 @@ class OCRPageDetailView(MethodView):
 class SignedURLView(MethodView):
     @jwt_required
     def get(self, script_id: str):
-        """Generate a signed URL for the original uploaded file."""
+        """Generate a signed URL for the original uploaded file (if it was stored)."""
         institution_id = get_current_institution_id()
         upload = UploadedScriptRepository().find_by_id(script_id, institution_id)
         _check_upload_access(upload, script_id)
 
+        file_key = upload.get("fileKey")
+        if not file_key:
+            from flask import jsonify
+            return jsonify({"error": {"message": "Original file was not retained (answer scripts are not stored)."}}), 404
         storage = get_storage_provider()
-        url = storage.generate_signed_url(upload["fileKey"])
+        url = storage.generate_signed_url(file_key)
         return {"signedUrl": url, "expiresIn": 900}
 
 
@@ -129,15 +135,72 @@ class ReSegmentView(MethodView):
         )
         avg_conf = sum(p["confidenceScore"] for p in pages) / len(pages)
         all_flags = list({f for p in pages for f in p.get("qualityFlags", [])})
+        trace_id = uuid.uuid4().hex[:16]
 
-        from app.tasks.ocr import segment_answers
-        import uuid
-
-        segment_answers.delay(
-            script_id, full_text, avg_conf, all_flags, uuid.uuid4().hex[:16]
+        # Set status to OCR_COMPLETE so UI shows "Segmenting" immediately (re-evaluation in progress)
+        UploadedScriptRepository().update_one(
+            script_id,
+            {"$set": {"uploadStatus": UploadStatus.OCR_COMPLETE.value}, "$unset": {"failureReason": ""}},
         )
 
+        from app.config import get_settings
+        if get_settings().USE_CELERY_REDIS:
+            from app.tasks.ocr import segment_answers
+            segment_answers.delay(script_id, full_text, avg_conf, all_flags, trace_id)
+        else:
+            from app.services.sync_pipeline import run_segment_and_prepare
+            run_segment_and_prepare(script_id, full_text, avg_conf, all_flags, trace_id)
+
         return {"message": "Re-segmentation triggered", "scriptId": script_id}
+
+
+@ocr_bp.route("/scripts/<script_id>/re-run-ocr")
+class ReRunOCRView(MethodView):
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def post(self, script_id: str):
+        """Re-run OCR (and segmentation) from the stored file. Requires the script to have been uploaded with storeFile=true."""
+        import os
+        import tempfile
+        import threading
+
+        institution_id = get_current_institution_id()
+        upload = UploadedScriptRepository().find_by_id(script_id, institution_id)
+        _check_upload_access(upload, script_id)
+
+        file_key = upload.get("fileKey")
+        if not file_key:
+            from flask import jsonify
+            return jsonify({
+                "error": {"message": "No stored file for this script. Upload with storeFile=true (or forTuning=true) to enable re-run OCR."}
+            }), 400
+
+        storage = get_storage_provider()
+        fd, temp_path = tempfile.mkstemp(suffix=".rerun-ocr")
+        try:
+            os.close(fd)
+            storage.download(file_key, temp_path)
+        except Exception as e:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+            from flask import jsonify
+            return jsonify({"error": {"message": f"Failed to download stored file: {e}"}}), 500
+
+        def _bg():
+            try:
+                from app.services.sync_pipeline import re_run_ocr_from_file
+                re_run_ocr_from_file(script_id, temp_path)
+            finally:
+                try:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                except OSError:
+                    pass
+
+        t = threading.Thread(target=_bg, daemon=True)
+        t.start()
+        return {"message": "Re-run OCR started; check upload status for progress.", "scriptId": script_id}, 202
 
 
 @ocr_bp.route("/test")
@@ -179,22 +242,25 @@ class OCRTestView(MethodView):
                 settings = get_settings()
                 dpi = getattr(settings, "OCR_DPI", 150)
                 images = convert_from_path(local_path, dpi=dpi)
-                # Test caps at 10 pages so it stays quick; pipeline processes all pages.
-                max_test_pages = 10
                 page_tasks = []
                 for i, img in enumerate(images, start=1):
-                    if i > max_test_pages:
-                        break
                     page_path = os.path.join(tmpdir, f"page_{i}.png")
                     img.save(page_path, "PNG")
                     page_tasks.append((page_path, i))
 
+                # Process pages with delay to stay under OpenAI RPM (requests per minute) limits.
+                # Low-tier accounts may allow only 3–10 RPM; add delay between each request.
+                import time
+                max_concurrent = max(1, min(settings.OCR_TEST_MAX_CONCURRENT, 3))
+                delay_sec = max(0.0, settings.OCR_TEST_DELAY_SECONDS)
+
                 results = []
-                with ThreadPoolExecutor(max_workers=5) as executor:
-                    futures = [
-                        executor.submit(extract_page_text, path, num)
-                        for path, num in page_tasks
-                    ]
+                with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+                    futures = []
+                    for idx, (path, num) in enumerate(page_tasks):
+                        if delay_sec > 0 and idx > 0:
+                            time.sleep(delay_sec)
+                        futures.append(executor.submit(extract_page_text, path, num))
                     for future in futures:
                         results.append(future.result())
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Run entire Assessment Engine with one command.
-# Starts MongoDB, Redis (Docker), Flask, Celery, and Frontend. Ctrl+C stops everything.
+# Run Assessment Engine: Flask + Frontend + (optional) Celery workers.
+# Sync (USE_CELERY_REDIS=false): OCR/eval in-process. Celery (true): needs Redis.
+# Ensure MongoDB is running. UI: http://localhost:3000
 
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -8,30 +9,22 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 
 FLASK_PID=""
-CELERY_OCR_PID=""
-CELERY_EVAL_PID=""
-DOCKER_MONGO=false
-DOCKER_REDIS=false
+CELERY_PIDS=""
+FRONTEND_PID=""
+[ -f "$ROOT/.env" ] && set -a && source "$ROOT/.env" && set +a
+[ -f "$BACKEND/.env" ] && set -a && source "$BACKEND/.env" && set +a
 
 cleanup() {
   echo ""
-  echo "Shutting down..."
-  [ -n "$FLASK_PID" ] && kill "$FLASK_PID" 2>/dev/null || true
-  [ -n "$CELERY_OCR_PID" ] && kill "$CELERY_OCR_PID" 2>/dev/null || true
-  [ -n "$CELERY_EVAL_PID" ] && kill "$CELERY_EVAL_PID" 2>/dev/null || true
-  # Give Celery time to ack tasks so Redis is not stopped while workers are still acking (avoids "Connection refused" and requeued messages)
-  sleep 3
-  if [ "$DOCKER_MONGO" = true ]; then
-    docker stop mongo 2>/dev/null || true
-  fi
-  if [ "$DOCKER_REDIS" = true ]; then
-    docker stop redis 2>/dev/null || true
-  fi
+  echo "Shutting down (terminating all processes)..."
+  [ -n "$FRONTEND_PID" ] && kill -9 "$FRONTEND_PID" 2>/dev/null || true
+  [ -n "$FLASK_PID" ] && kill -9 "$FLASK_PID" 2>/dev/null || true
+  for p in $CELERY_PIDS; do [ -n "$p" ] && kill -9 "$p" 2>/dev/null || true; done
   exit 0
 }
 trap cleanup SIGINT SIGTERM
 
-# Check if port is in use (MongoDB/Redis may already be running)
+# Check if MongoDB is reachable (optional; user may use Atlas)
 port_in_use() {
   if command -v nc &>/dev/null; then
     nc -z localhost "$1" 2>/dev/null
@@ -40,61 +33,41 @@ port_in_use() {
   fi
 }
 
-# Start MongoDB via Docker (only if port 27017 is free)
 if port_in_use 27017; then
-  echo "MongoDB already available on port 27017"
-elif docker ps -q -f name=^mongo$ 2>/dev/null | grep -q .; then
-  echo "MongoDB already running"
-elif docker ps -aq -f name=^mongo$ 2>/dev/null | grep -q .; then
-  echo "Starting MongoDB container..."
-  docker start mongo
-  DOCKER_MONGO=true
+  echo "MongoDB available on port 27017"
 else
-  echo "Starting MongoDB container..."
-  docker run -d -p 27017:27017 --name mongo mongo:7
-  DOCKER_MONGO=true
+  echo "Note: MongoDB not detected on localhost:27017. Using MONGO_URI from .env (e.g. MongoDB Atlas)."
 fi
-
-# Start Redis via Docker (only if port 6379 is free)
-if port_in_use 6379; then
-  echo "Redis already available on port 6379"
-elif docker ps -q -f name=^redis$ 2>/dev/null | grep -q .; then
-  echo "Redis already running"
-elif docker ps -aq -f name=^redis$ 2>/dev/null | grep -q .; then
-  echo "Starting Redis container..."
-  docker start redis
-  DOCKER_REDIS=true
-else
-  echo "Starting Redis container..."
-  docker run -d -p 6379:6379 --name redis redis:7-alpine
-  DOCKER_REDIS=true
-fi
-
-# Wait for MongoDB and Redis to accept connections
-echo "Waiting for MongoDB and Redis..."
-sleep 3
 
 cd "$BACKEND"
 source venv/bin/activate 2>/dev/null || . venv/Scripts/activate 2>/dev/null || true
 
-# Purge stale Celery tasks from previous runs (avoids old aggregate_pages/segment_answers flooding workers)
-echo "Purging stale tasks from OCR and evaluation queues..."
-celery -A celery_app:celery purge -Q ocr -f 2>/dev/null || true
-celery -A celery_app:celery purge -Q evaluation -f 2>/dev/null || true
-celery -A celery_app:celery purge -Q default -f 2>/dev/null || true
+USE_CELERY="${USE_CELERY_REDIS:-false}"
+if [ "$USE_CELERY" = "true" ] || [ "$USE_CELERY" = "1" ]; then
+  if ! port_in_use 6379; then
+    echo "Error: USE_CELERY_REDIS=true but Redis not running on 6379."
+    echo "Start Redis: docker run -d -p 6379:6379 redis:alpine"
+    exit 1
+  fi
+  echo "Starting Flask backend (Celery mode)..."
+  python -m flask run --host=0.0.0.0 --port=5000 &
+  FLASK_PID=$!
+  sleep 2
+  CONCURRENCY="${CELERY_WORKER_CONCURRENCY:-4}"
+  celery -A celery_app.celery worker -Q ocr,default -l info --concurrency="$CONCURRENCY" &
+  CELERY_PIDS="$!"
+  celery -A celery_app.celery worker -Q evaluation -l info --concurrency="$CONCURRENCY" &
+  CELERY_PIDS="$CELERY_PIDS $!"
+  sleep 3
+else
+  echo "Starting Flask backend (sync pipeline)..."
+  python -m flask run --host=0.0.0.0 --port=5000 &
+  FLASK_PID=$!
+  sleep 2
+fi
 
-echo "Starting Flask backend..."
-python -m flask run --host=0.0.0.0 --port=5000 &
-FLASK_PID=$!
-
-echo "Starting Celery workers (OCR + Evaluation)..."
-celery -A celery_app:celery worker -Q ocr -l info --concurrency=8 &
-CELERY_OCR_PID=$!
-celery -A celery_app:celery worker -Q evaluation,default -l info --concurrency=8 &
-CELERY_EVAL_PID=$!
-
-sleep 2
-
-echo "Starting frontend..."
+echo "Starting frontend (UI: http://localhost:3000)..."
 cd "$FRONTEND"
-npm run dev
+npm run dev &
+FRONTEND_PID=$!
+wait

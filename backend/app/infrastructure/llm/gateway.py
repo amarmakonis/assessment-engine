@@ -19,7 +19,7 @@ from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential,
+    wait_random_exponential,
 )
 
 from app.common.exceptions import LLMError
@@ -59,8 +59,8 @@ class OpenAIGateway:
 
     @retry(
         retry=retry_if_exception_type((APITimeoutError, OpenAIRateLimitError)),
-        wait=wait_exponential(multiplier=1, min=2, max=60),
-        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=2, max=60),
+        stop=stop_after_attempt(5),
         reraise=True,
     )
     def complete(
@@ -182,8 +182,8 @@ class OpenAIGateway:
 
     @retry(
         retry=retry_if_exception_type((APITimeoutError, OpenAIRateLimitError)),
-        wait=wait_exponential(multiplier=1, min=2, max=60),
-        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=2, max=60),
+        stop=stop_after_attempt(5),
         reraise=True,
     )
     def vision_extract_text(
@@ -218,10 +218,11 @@ class OpenAIGateway:
             "exactly as written."
         )
 
+        vision_model = get_settings().OPENAI_MODEL_VISION
         start = time.perf_counter_ns()
         try:
             response = self._client.chat.completions.create(
-                model=self._model,
+                model=vision_model,
                 messages=[
                     {"role": "system", "content": ocr_system},
                     {
