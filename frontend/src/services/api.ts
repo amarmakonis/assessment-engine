@@ -164,16 +164,23 @@ export const examAPI = {
     questions: { questionText: string; maxMarks: number; rubric: { description: string; maxMarks: number }[] }[];
   }) => api.post<{ examId: string; totalMarks: number }>("/exams/", data),
   upload: (formData: FormData) =>
-    api.post<{
-      examId: string;
-      totalMarks: number;
-      statedMaxMarks?: number;
-      extractedTotalMarks?: number;
-      marksMismatchWarning?: string;
-    }>("/exams/upload", formData, {
+    api.post<
+      | { jobId: string }
+      | {
+          examId: string;
+          totalMarks: number;
+          statedMaxMarks?: number;
+          extractedTotalMarks?: number;
+          marksMismatchWarning?: string;
+        }
+    >("/exams/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" },
-      timeout: 300000, // 5 min — extraction + rubric can take 2–3 min
+      timeout: 60000, // 1 min for upload + job creation; extraction runs in background
     }),
+  getJobStatus: (jobId: string) =>
+    api.get<{ jobId: string; status: string; examId?: string; error?: string }>(`/exams/jobs/${jobId}`),
+  cancelJob: (jobId: string) =>
+    api.post<{ message: string; jobId: string; status: string }>(`/exams/jobs/${jobId}/cancel`),
   list: (params?: { page?: number; perPage?: number }) =>
     api.get<{
       items: { id: string; title: string; subject: string; totalMarks: number; questions: any[]; createdAt: string }[];

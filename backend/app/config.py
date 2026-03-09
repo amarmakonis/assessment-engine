@@ -106,6 +106,12 @@ class AppSettings(BaseSettings):
     OPENAI_MAX_RETRIES: int = 3
     OPENAI_ORGANIZATION: str = ""
 
+    # Model for exam extraction (question + rubric from upload). Default gpt-4o-mini for speed.
+    OPENAI_MODEL_EXAM_EXTRACTION: str = Field(default="gpt-4o-mini", description="Model for exam extraction from uploads. gpt-4o-mini is faster; use gpt-4o for harder documents.")
+    # Model for rubric generation when no rubric file. Empty = use OPENAI_MODEL. Set to gpt-4o for more specific, less vague rubrics.
+    OPENAI_MODEL_RUBRIC_BUILDER: str | None = Field(default=None, description="Model for rubric builder. None = use OPENAI_MODEL. Set to gpt-4o for higher-quality, more specific rubrics.")
+    # Default for exam upload when client does not send generateRubrics. True = generate detailed rubrics when no rubric file; False = use generic only.
+    USE_AUTO_RUBRIC_GENERATION: bool = Field(default=True, description="Default when user does not choose: True = generate detailed rubrics when no rubric file; False = generic only. User can override per upload.")
     # Model for segmentation. Default gpt-4o-mini for speed; set to OPENAI_MODEL or empty to use main model.
     OPENAI_MODEL_SEGMENTATION: str | None = Field(default="gpt-4o-mini", description="Model for segmentation. Default gpt-4o-mini for speed. Set empty/None to use OPENAI_MODEL.")
     # Max tokens for segmentation response. Must be high enough for full answerText per question (long essays).

@@ -26,8 +26,8 @@ Given the raw text extracted from a question paper and/or rubric document, produ
 4. **Extract exact marks per question.** Use the marks exactly as printed (e.g. "[5 marks]", "(2)", "Marks: 4"). Do not scale or redistribute. The sum of all maxMarks must equal the stated maximum (e.g. Maximum Marks : 80).
 5. Extract EVERY question from the document (English only). Do not skip any.
 6. Preserve the EXACT question text as written (English only). For OR questions, keep both (a) and (b) in questionText so the evaluator can tell which option the student answered.
-7. For rubrics: if a separate rubric document is provided, map each criterion to its corresponding question.
-8. If no rubric is provided, generate sensible default rubric criteria. Each criterion's maxMarks must sum to the question's maxMarks.
+7. For rubrics: if a separate rubric document is provided, map each criterion to its corresponding question. Keep or refine descriptions to be SPECIFIC and measurable (what exactly gets full vs partial marks).
+8. If no rubric is provided, generate specific default rubric criteria — not vague ones like "overall quality". Each criterion must name concrete requirements (e.g. key terms, steps, or components the answer must include). Each criterion's maxMarks must sum to the question's maxMarks.
 9. Extract the exam title and subject if mentioned.
 10. If the document has sections (Section A, B, etc.), still extract individual questions (English only). Use the printed question number for each.
 11. Sub-questions (a), (b), (c) that are all to be answered (no OR) may be separate questions if they have separate marks; if they share one mark block, combine. For "(a) ... OR (b) ..." always one question with maxMarks = one option's marks.
@@ -78,7 +78,9 @@ def extract_exam_from_text(
     """
     Use OpenAI to parse raw document text into structured exam data.
     """
+    from app.config import get_settings
     gateway = get_llm_gateway()
+    model = get_settings().OPENAI_MODEL_EXAM_EXTRACTION or None
 
     user_prompt_parts = ["## QUESTION PAPER TEXT\n", question_paper_text]
     if rubric_text:
@@ -92,6 +94,7 @@ def extract_exam_from_text(
         user_prompt=user_prompt,
         temperature=0.0,
         max_tokens=8192,
+        model=model,
     )
 
     content = llm_response.content.strip()

@@ -24,7 +24,8 @@ from app.api.middleware.auth import (
 )
 from app.api.v1._serializers import _fmt_dt
 from app.common.exceptions import NotFoundError, ValidationError
-from app.infrastructure.db.repositories import ExamRepository
+from app.config import get_settings
+from app.infrastructure.db.repositories import ExamJobRepository, ExamRepository
 
 logger = logging.getLogger(__name__)
 exam_bp = Blueprint("exam", __name__, url_prefix="/exams", description="Exam Management")
@@ -131,116 +132,149 @@ class ExamUploadView(MethodView):
     def post(self):
         """
         Create an exam by uploading question paper and/or rubric documents.
-        Supports PDF, DOCX, JPEG, PNG.
-        Extracts questions and rubrics using OpenAI.
+        When Celery is enabled, returns 202 and processes in background; poll GET /exams/jobs/<jobId>.
+        Otherwise runs synchronously and returns 201 with examId.
         """
-        from app.agents.exam_extractor import (
-            extract_exam_from_text,
-            extract_text_from_docx,
-            extract_text_from_image_via_vision,
-            extract_text_from_pdf_via_vision,
-        )
-
+        import shutil
+        import uuid
         question_file = request.files.get("questionPaper")
         rubric_file = request.files.get("rubricDocument")
-
         if not question_file:
             raise ValidationError("questionPaper file is required")
 
-        question_text = _extract_text_from_upload(
-            question_file,
-            extract_text_from_pdf_via_vision,
-            extract_text_from_docx,
-            extract_text_from_image_via_vision,
-        )
-
-        rubric_text = None
-        if rubric_file:
-            rubric_text = _extract_text_from_upload(
-                rubric_file,
-                extract_text_from_pdf_via_vision,
-                extract_text_from_docx,
-                extract_text_from_image_via_vision,
-            )
+        settings = get_settings()
+        institution_id = get_current_institution_id()
+        user_id = get_current_user_id()
+        job_base = _exam_jobs_base_path()
+        job_dir = os.path.join(job_base, uuid.uuid4().hex)
+        os.makedirs(job_dir, exist_ok=True)
 
         try:
-            extracted = extract_exam_from_text(question_text, rubric_text)
-        except ValueError as e:
-            logger.warning("Exam extraction parse/validation failed: %s", e)
-            raise ValidationError(
-                f"Could not parse exam from document: {e!s}"
-            ) from e
+            question_path, question_mime = _save_upload_to_job_dir(job_dir, question_file, "question")
         except Exception as e:
-            logger.exception("Exam extraction failed")
-            raise ValidationError(
-                f"Exam extraction failed: {e!s}"
-            ) from e
+            shutil.rmtree(job_dir, ignore_errors=True)
+            raise
 
-        stated_max = _detect_stated_maximum_marks(question_text)
-        extracted_total = sum(q.max_marks for q in extracted.questions)
-        marks_mismatch = (
-            stated_max is not None
-            and stated_max > 0
-            and abs(extracted_total - stated_max) > 0.01
-        )
+        rubric_path = rubric_mime = None
+        if rubric_file and rubric_file.filename:
+            try:
+                rubric_path, rubric_mime = _save_upload_to_job_dir(job_dir, rubric_file, "rubric")
+            except Exception as e:
+                logger.warning("Rubric file save failed, continuing without rubric: %s", e)
 
-        title_override = request.form.get("title")
-        subject_override = request.form.get("subject")
+        title_override = request.form.get("title") or None
+        subject_override = request.form.get("subject") or None
+        generate_rubrics_val = request.form.get("generateRubrics", "true").lower()
+        use_auto_rubric_generation = generate_rubrics_val not in ("false", "0", "no")
+
+        job_doc = {
+            "institutionId": institution_id,
+            "createdBy": user_id,
+            "status": "CREATING",
+            "questionFilePath": question_path,
+            "questionMime": question_mime,
+            "useAutoRubricGeneration": use_auto_rubric_generation,
+            "createdAt": datetime.now(timezone.utc),
+            "updatedAt": datetime.now(timezone.utc),
+        }
+        if rubric_path:
+            job_doc["rubricFilePath"] = rubric_path
+            job_doc["rubricMime"] = rubric_mime
         if title_override:
-            extracted.title = title_override
+            job_doc["titleOverride"] = title_override
         if subject_override:
-            extracted.subject = subject_override
+            job_doc["subjectOverride"] = subject_override
 
-        if not rubric_file:
-            from app.agents.rubric_builder import build_rubrics_for_questions
+        job_id = ExamJobRepository().insert_one(job_doc)
 
-            q_dicts = [
-                {"questionText": q.question_text, "maxMarks": q.max_marks}
-                for q in extracted.questions
-            ]
-            built = build_rubrics_for_questions(q_dicts, subject=extracted.subject)
+        if settings.USE_CELERY_REDIS:
+            from app.tasks.exam import create_exam_from_upload_task
+            create_exam_from_upload_task.delay(job_id)
+            return {
+                "message": "Exam creation started. Poll GET /exams/jobs/{jobId} for status.",
+                "jobId": job_id,
+                "status": "CREATING",
+            }, 202
 
-            from app.agents.exam_extractor import RubricItem
+        from app.tasks.exam import _run_exam_creation
+        _run_exam_creation(job_id)
+        job = ExamJobRepository().find_by_id(job_id, institution_id)
+        if job.get("status") == "COMPLETE":
+            return {
+                "message": "Exam created",
+                "examId": job.get("examId"),
+                "totalMarks": job.get("totalMarks"),
+            }, 201
+        raise ValidationError(job.get("error", "Exam creation failed"))
 
-            rubric_map: dict[int, list] = {}
-            for qr in built.questions:
-                rubric_map[qr.question_index] = qr.rubric
 
-            for i, q in enumerate(extracted.questions):
-                if i in rubric_map:
-                    q.rubric = [
-                        RubricItem(description=r.description, maxMarks=r.max_marks)
-                        for r in rubric_map[i]
-                    ]
+@exam_bp.route("/jobs/<job_id>")
+class ExamJobStatusView(MethodView):
+    @jwt_required
+    def get(self, job_id: str):
+        """Poll exam creation job status. Returns status (CREATING|COMPLETE|FAILED), examId when complete, error when failed."""
+        institution_id = get_current_institution_id()
+        job = ExamJobRepository().find_by_id(job_id, institution_id)
+        if not job:
+            raise NotFoundError("ExamJob", job_id)
+        if not can_see_all_institution_data() and job.get("createdBy") != get_current_user_id():
+            raise NotFoundError("ExamJob", job_id)
+        out = {"jobId": job_id, "status": job.get("status", "CREATING")}
+        if job.get("examId"):
+            out["examId"] = job["examId"]
+        if job.get("error"):
+            out["error"] = job["error"]
+        return out
 
-        questions_data = []
-        for q in extracted.questions:
-            questions_data.append(QuestionInput(
-                questionNumber=q.question_number,
-                questionText=q.question_text,
-                maxMarks=q.max_marks,
-                rubric=[
-                    RubricCriterionInput(description=r.description, maxMarks=r.max_marks)
-                    for r in q.rubric
-                ],
-            ))
 
-        create_req = CreateExamRequest(
-            title=extracted.title,
-            subject=extracted.subject,
-            questions=questions_data,
+@exam_bp.route("/jobs/<job_id>/cancel")
+class ExamJobCancelView(MethodView):
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def post(self, job_id: str):
+        """Cancel an in-progress exam creation job. Task will skip creating the exam if it sees CANCELLED."""
+        institution_id = get_current_institution_id()
+        job = ExamJobRepository().find_by_id(job_id, institution_id)
+        if not job:
+            raise NotFoundError("ExamJob", job_id)
+        if not can_see_all_institution_data() and job.get("createdBy") != get_current_user_id():
+            raise NotFoundError("ExamJob", job_id)
+        status = job.get("status", "CREATING")
+        if status not in (None, "CREATING"):
+            return {"message": f"Job already {status}", "jobId": job_id, "status": status}
+        ExamJobRepository().update_one(
+            job_id,
+            {"$set": {"status": "CANCELLED", "updatedAt": datetime.now(timezone.utc)}},
+            institution_id,
         )
+        return {"message": "Exam creation cancelled", "jobId": job_id, "status": "CANCELLED"}
 
-        response, status = _create_exam_from_data(create_req)
-        if marks_mismatch and isinstance(response, dict):
-            response["statedMaxMarks"] = stated_max
-            response["extractedTotalMarks"] = extracted_total
-            response["marksMismatchWarning"] = (
-                f"Document states maximum marks as {stated_max}, but extracted "
-                f"questions total {extracted_total}. Please review the exam and "
-                "edit question marks if needed."
-            )
-        return response, status
+
+def _exam_jobs_base_path() -> str:
+    """Return a writable base path for exam_jobs. Uses LOCAL_STORAGE_PATH if writable, else temp dir (works locally and on AWS)."""
+    settings = get_settings()
+    base = os.path.join(settings.LOCAL_STORAGE_PATH, "exam_jobs")
+    try:
+        os.makedirs(base, exist_ok=True)
+        return base
+    except (PermissionError, OSError):
+        fallback = os.path.join(tempfile.gettempdir(), "aae_exam_jobs")
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
+
+
+def _save_upload_to_job_dir(job_dir: str, file_obj, prefix: str) -> tuple[str, str]:
+    """Save uploaded file to job dir. Returns (absolute_path, mime)."""
+    import magic as pymagic
+    file_bytes = file_obj.read()
+    file_obj.seek(0)
+    mime = pymagic.from_buffer(file_bytes, mime=True)
+    if mime not in ALLOWED_DOC_MIMES:
+        raise ValidationError(f"Unsupported file type: {mime}. Use PDF, DOCX, JPEG, or PNG.")
+    ext = _mime_to_ext(mime)
+    path = os.path.join(job_dir, f"{prefix}{ext}")
+    with open(path, "wb") as f:
+        f.write(file_bytes)
+    return os.path.abspath(path), mime
 
 
 @exam_bp.route("/<exam_id>")
@@ -407,17 +441,21 @@ def _mime_to_ext(mime: str) -> str:
     }.get(mime, ".bin")
 
 
-def _create_exam_from_data(data: CreateExamRequest) -> tuple[dict, int]:
-    institution_id = get_current_institution_id()
-    user_id = get_current_user_id()
+def _create_exam_from_data_sync(
+    data: CreateExamRequest,
+    institution_id: str,
+    user_id: str,
+) -> tuple[dict, int]:
+    """Create exam in DB. Used by API (with current user) and by Celery task (with job's institution/user)."""
     total_marks = sum(q.max_marks for q in data.questions)
 
+    settings = get_settings()
     needs_rubric_gen = any(
         not q.rubric or all(not c.description.strip() for c in q.rubric)
         for q in data.questions
     )
     built_rubric_map: dict[int, list] = {}
-    if needs_rubric_gen:
+    if needs_rubric_gen and settings.USE_AUTO_RUBRIC_GENERATION:
         try:
             from app.agents.rubric_builder import build_rubrics_for_questions
             q_dicts = [
@@ -480,6 +518,15 @@ def _create_exam_from_data(data: CreateExamRequest) -> tuple[dict, int]:
 
     exam_id = ExamRepository().insert_one(doc)
     return {"message": "Exam created", "examId": exam_id, "totalMarks": total_marks}, 201
+
+
+def _create_exam_from_data(data: CreateExamRequest) -> tuple[dict, int]:
+    """Create exam using current request's institution and user."""
+    return _create_exam_from_data_sync(
+        data,
+        get_current_institution_id(),
+        get_current_user_id(),
+    )
 
 
 def _serialize_exam(doc: dict) -> dict:

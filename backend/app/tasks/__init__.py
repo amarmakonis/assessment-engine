@@ -2,4 +2,4 @@
 Celery task auto-discovery modules.
 """
 
-from app.tasks import evaluation, ocr  # noqa: F401
+from app.tasks import evaluation, exam, ocr  # noqa: F401

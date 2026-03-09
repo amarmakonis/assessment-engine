@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -68,6 +68,11 @@ export function ExamPage() {
   const [subject, setSubject] = useState("");
   const [questionFile, setQuestionFile] = useState<File | null>(null);
   const [rubricFile, setRubricFile] = useState<File | null>(null);
+  /** When no rubric file is uploaded: true = generate detailed rubrics with AI (recommended); false = use generic rubrics only (faster). */
+  const [generateRubrics, setGenerateRubrics] = useState(true);
+  /** When set, we are polling for this exam job and show a Cancel button. */
+  const [creatingJobId, setCreatingJobId] = useState<string | null>(null);
+  const cancelPollingRef = useRef(false);
   const [questions, setQuestions] = useState<QuestionInput[]>([
     { questionText: "", maxMarks: 10, rubric: [{ description: "", maxMarks: 10 }] },
   ]);
@@ -200,17 +205,56 @@ export function ExamPage() {
       if (rubricFile) formData.append("rubricDocument", rubricFile);
       if (title.trim()) formData.append("title", title.trim());
       if (subject.trim()) formData.append("subject", subject.trim());
+      formData.append("generateRubrics", generateRubrics ? "true" : "false");
 
-      const { data } = await examAPI.upload(formData);
-      toast.success(`Exam created! ${data.totalMarks} total marks extracted.`);
-      if (data.marksMismatchWarning) {
-        toast(data.marksMismatchWarning, { duration: 8000, icon: "⚠️" });
+      const res = await examAPI.upload(formData);
+      const { data, status } = res;
+
+      if (status === 202 && "jobId" in data && data.jobId) {
+        const jobId = data.jobId;
+        cancelPollingRef.current = false;
+        setCreatingJobId(jobId);
+        toast.loading("Creating exam… This may take 1–2 minutes.", { id: "exam-create" });
+        const poll = async (): Promise<void> => {
+          if (cancelPollingRef.current) return;
+          const { data: job } = await examAPI.getJobStatus(jobId);
+          if (cancelPollingRef.current) return;
+          if (job.status === "COMPLETE") {
+            setCreatingJobId(null);
+            setCreating(false);
+            toast.success(`Exam created! ${job.examId ? "You can use it for uploads now." : ""}`, { id: "exam-create" });
+            resetForm();
+            loadExams();
+            return;
+          }
+          if (job.status === "FAILED") {
+            setCreatingJobId(null);
+            setCreating(false);
+            toast.error(job.error || "Exam creation failed", { id: "exam-create" });
+            return;
+          }
+          if (job.status === "CANCELLED") {
+            setCreatingJobId(null);
+            setCreating(false);
+            toast("Exam creation was cancelled", { id: "exam-create" });
+            return;
+          }
+          setTimeout(poll, 2500);
+        };
+        await poll();
+      } else {
+        toast.success(`Exam created! ${(data as { totalMarks?: number }).totalMarks ?? 0} total marks extracted.`, { id: "exam-create" });
+        if ((data as { marksMismatchWarning?: string }).marksMismatchWarning) {
+          toast((data as { marksMismatchWarning: string }).marksMismatchWarning, { duration: 8000, icon: "⚠️" });
+        }
+        resetForm();
+        loadExams();
       }
-      resetForm();
-      loadExams();
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || "Failed to extract exam from documents";
-      toast.error(msg);
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "response" in err && typeof (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message === "string"
+        ? (err as { response: { data: { error: { message: string } } } }).response.data.error.message
+        : "Failed to extract exam from documents";
+      toast.error(msg, { id: "exam-create" });
     } finally {
       setCreating(false);
     }
@@ -242,11 +286,26 @@ export function ExamPage() {
     }
   }
 
+  async function cancelExamCreation() {
+    if (!creatingJobId) return;
+    try {
+      await examAPI.cancelJob(creatingJobId);
+      cancelPollingRef.current = true;
+      setCreatingJobId(null);
+      setCreating(false);
+      toast("Exam creation cancelled", { id: "exam-create" });
+    } catch {
+      toast.error("Could not cancel", { id: "exam-create" });
+    }
+  }
+
   function resetForm() {
     setTitle("");
     setSubject("");
     setQuestionFile(null);
     setRubricFile(null);
+    setGenerateRubrics(true);
+    setCreatingJobId(null);
     setQuestions([{ questionText: "", maxMarks: 10, rubric: [{ description: "", maxMarks: 10 }] }]);
     setShowForm(false);
   }
@@ -389,25 +448,73 @@ export function ExamPage() {
                     )}
                   </label>
                   <p className="text-xs text-text-muted mt-1">
-                    If not provided, rubric criteria will be auto-generated.
+                    If not provided, choose below whether to generate detailed rubrics with AI or use generic rubrics.
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={handleUploadCreate}
-                disabled={creating || !questionFile}
-                className="btn-primary w-full"
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-                    Extracting with AI... (1–3 min, please wait)
-                  </>
-                ) : (
-                  "Extract & Create Exam"
-                )}
-              </button>
+              {!rubricFile && (
+                <div className="rounded-xl border border-border bg-blue-50/50 dark:bg-slate-800/30 p-4">
+                  <p className="text-sm font-medium text-text-primary mb-3">No rubric file uploaded. How should rubrics be set?</p>
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="generateRubrics"
+                        checked={generateRubrics}
+                        onChange={() => setGenerateRubrics(true)}
+                        className="mt-1"
+                      />
+                      <span className="text-sm text-text-primary">
+                        <strong>Generate detailed rubrics with AI</strong> (recommended) — better evaluation quality. May take 1–2 minutes.
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="generateRubrics"
+                        checked={!generateRubrics}
+                        onChange={() => setGenerateRubrics(false)}
+                        className="mt-1"
+                      />
+                      <span className="text-sm text-text-primary">
+                        <strong>Use generic rubrics only</strong> (faster) — one criterion per question; exam created in ~30–60 seconds.
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {creatingJobId ? (
+                <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-blue-50 dark:bg-slate-800/40 border border-border">
+                  <span className="text-sm text-text-primary flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating exam… This may take 1–2 minutes.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={cancelExamCreation}
+                    className="btn-secondary text-sm py-1.5 px-3"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleUploadCreate}
+                  disabled={creating || !questionFile}
+                  className="btn-primary w-full"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                      Extracting with AI... (1–3 min, please wait)
+                    </>
+                  ) : (
+                    "Extract & Create Exam"
+                  )}
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
