@@ -146,7 +146,18 @@ class ExamUploadView(MethodView):
                 extract_text_from_image_via_vision,
             )
 
-        extracted = extract_exam_from_text(question_text, rubric_text)
+        try:
+            extracted = extract_exam_from_text(question_text, rubric_text)
+        except ValueError as e:
+            logger.warning("Exam extraction parse/validation failed: %s", e)
+            raise ValidationError(
+                f"Could not parse exam from document: {e!s}"
+            ) from e
+        except Exception as e:
+            logger.exception("Exam extraction failed")
+            raise ValidationError(
+                f"Exam extraction failed: {e!s}"
+            ) from e
 
         stated_max = _detect_stated_maximum_marks(question_text)
         extracted_total = sum(q.max_marks for q in extracted.questions)
