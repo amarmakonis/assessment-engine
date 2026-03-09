@@ -317,8 +317,22 @@ export function ExamPage() {
 
   const totalMarks = questions.reduce((s, q) => s + q.maxMarks, 0);
 
+  const examCreationInProgress = !!creatingJobId || (creating && createMode === "upload");
+
   return (
     <div className="space-y-6">
+      {examCreationInProgress && (
+        <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50 dark:bg-slate-800/50 border border-accent-blue/30">
+          <Loader2 className="w-6 h-6 animate-spin text-accent-blue flex-shrink-0" />
+          <div>
+            <p className="font-medium text-text-primary">Exam is being created</p>
+            <p className="text-sm text-text-secondary mt-0.5">
+              This usually takes 1–2 minutes. Please wait — this is not an error. You cannot start another exam until this one finishes.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="page-title">Exams</h2>
@@ -326,7 +340,12 @@ export function ExamPage() {
             Create exams by uploading question papers or entering manually
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          disabled={examCreationInProgress}
+          className="btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          title={examCreationInProgress ? "Wait for the current exam to finish creating" : undefined}
+        >
           <Plus className="w-4 h-4" />
           {showForm ? "Cancel" : "New Exam"}
         </button>
@@ -486,11 +505,14 @@ export function ExamPage() {
               )}
 
               {creatingJobId ? (
-                <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-blue-50 dark:bg-slate-800/40 border border-border">
-                  <span className="text-sm text-text-primary flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating exam… This may take 1–2 minutes.
-                  </span>
+                <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-blue-50 dark:bg-slate-800/40 border border-accent-blue/30">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-accent-blue flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">Exam is being created (in progress)</p>
+                      <p className="text-xs text-text-secondary mt-0.5">This is not an error. Please wait 1–2 minutes. Do not start another exam.</p>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={cancelExamCreation}
@@ -649,7 +671,12 @@ export function ExamPage() {
             title="No exams yet"
             description="Create an exam with questions and rubrics to start grading answer scripts."
             action={
-              <button onClick={() => setShowForm(true)} className="btn-primary inline-flex items-center gap-2">
+              <button
+                onClick={() => setShowForm(true)}
+                disabled={examCreationInProgress}
+                className="btn-primary inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={examCreationInProgress ? "Wait for the current exam to finish creating" : undefined}
+              >
                 <Plus className="w-4 h-4" />
                 New Exam
               </button>

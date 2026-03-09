@@ -16,10 +16,18 @@ from app.agents.exam_extractor import (
     extract_text_from_image_via_vision,
     extract_text_from_pdf_via_vision,
 )
+from app.common.exceptions import LLMError
 from app.infrastructure.db.repositories import ExamJobRepository, ExamRepository
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Transient errors that should trigger a task retry (network/API)
+def _is_transient_error(exc: BaseException) -> bool:
+    if isinstance(exc, LLMError):
+        msg = str(exc).lower()
+        return "connection" in msg or "timeout" in msg or "rate" in msg or "429" in msg
+    return False
 
 ALLOWED_DOC_MIMES = {
     "application/pdf",
@@ -74,6 +82,16 @@ def _run_exam_creation(job_id: str) -> None:
 
     try:
         question_text = _extract_text_from_path(question_path, question_mime)
+    except LLMError as e:
+        if _is_transient_error(e):
+            raise  # Let task retry
+        logger.exception("Exam job %s: text extraction failed", job_id)
+        job_repo.update_one(
+            job_id,
+            {"$set": {"status": "FAILED", "error": str(e), "updatedAt": datetime.now(timezone.utc)}},
+            job.get("institutionId"),
+        )
+        return
     except Exception as e:
         logger.exception("Exam job %s: text extraction failed", job_id)
         job_repo.update_one(
@@ -94,6 +112,16 @@ def _run_exam_creation(job_id: str) -> None:
 
     try:
         extracted = extract_exam_from_text(question_text, rubric_text)
+    except LLMError as e:
+        if _is_transient_error(e):
+            raise  # Let task retry
+        logger.exception("Exam job %s: exam extraction failed", job_id)
+        job_repo.update_one(
+            job_id,
+            {"$set": {"status": "FAILED", "error": str(e), "updatedAt": datetime.now(timezone.utc)}},
+            job.get("institutionId"),
+        )
+        return
     except Exception as e:
         logger.exception("Exam job %s: exam extraction failed", job_id)
         job_repo.update_one(
@@ -188,7 +216,26 @@ from celery_app import celery
     name="app.tasks.exam.create_exam_from_upload",
     queue="default",
     acks_late=True,
+    max_retries=3,
 )
 def create_exam_from_upload_task(self, job_id: str):
-    """Create exam from uploaded files. Job doc must exist with questionFilePath and status CREATING."""
-    _run_exam_creation(job_id)
+    """Create exam from uploaded files. Job doc must exist with questionFilePath and status CREATING.
+    Transient connection/API errors trigger a task retry (up to 3) with backoff."""
+    try:
+        _run_exam_creation(job_id)
+    except LLMError as e:
+        if _is_transient_error(e) and self.request.retries < self.max_retries:
+            countdown = (2 ** self.request.retries) * 30  # 30s, 60s, 120s
+            logger.warning("Exam job %s: transient error (will retry in %ss): %s", job_id, countdown, e)
+            raise self.retry(exc=e, countdown=countdown)
+        # Final failure or non-transient: mark job failed
+        from app.infrastructure.db.repositories import ExamJobRepository
+        job_repo = ExamJobRepository()
+        job = job_repo.find_by_id(job_id)
+        if job and job.get("status") in (None, "CREATING"):
+            job_repo.update_one(
+                job_id,
+                {"$set": {"status": "FAILED", "error": str(e), "updatedAt": datetime.now(timezone.utc)}},
+                job.get("institutionId"),
+            )
+        raise
