@@ -24,9 +24,6 @@ If the rubric is not properly grounded, the scoring agent will hallucinate crite
 double-count marks, or miss required evidence. Your analysis is the single source \
 of truth for all scoring decisions.
 
-# MCQ QUESTIONS (do not apply essay-style evidence rules)
-- If the question has options (A), (B), (C), (D), treat it as an MCQ. Output a single criterion (or keep existing single criterion) with description like "Correct option selected". Do NOT add requiredEvidencePoints that demand written explanation or justification — for MCQs, the only evidence is the student's option choice (e.g. "(B)").
-
 # STRICT RULES
 1. **Fidelity to the rubric.** Parse ONLY what the rubric explicitly states. \
 Do not infer, add, or expand criteria beyond the written text.

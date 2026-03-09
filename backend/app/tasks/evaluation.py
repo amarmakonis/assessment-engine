@@ -15,22 +15,13 @@ from datetime import datetime, timezone
 
 from celery import group
 
-from app.agents.mcq import score_mcq_deterministic
 from app.common.observability import structured_log, tasks_total
 from app.config import get_settings
 from app.domain.models.common import (
-    ConsistencyAssessment,
     EvaluationStatus,
     ReviewRecommendation,
     ScriptSource,
     ScriptStatus,
-)
-from app.domain.models.evaluation import (
-    ConsistencyAudit,
-    CriterionScore,
-    FinalCriterionScore,
-    GroundedRubric,
-    RubricCriterion,
 )
 from app.infrastructure.cache.redis_cache import RedisCache
 from app.infrastructure.db.repositories import (
@@ -258,104 +249,6 @@ def evaluate_question(
             ],
             key=lambda x: x["criterionId"],
         )
-        question_max_marks = float(question_def.get("maxMarks", 0))
-
-        # ── MCQ: deterministic scoring (no essay logic, no LLM for scoring) ─
-        mcq_result = score_mcq_deterministic(
-            question_text, answer_text, rubric_criteria, question_max_marks
-        )
-        if mcq_result is not None:
-            criterion_id, marks_awarded, max_marks_mcq, reason = mcq_result
-            grounded_rubric = GroundedRubric(
-                totalMarks=max_marks_mcq,
-                criteria=[
-                    RubricCriterion(
-                        criterionId=criterion_id,
-                        description="Correct option selected",
-                        maxMarks=max_marks_mcq,
-                        requiredEvidencePoints=["Student selected the correct option"],
-                        isAmbiguous=False,
-                        ambiguityNote=None,
-                    )
-                ],
-                groundingConfidence=1.0,
-            )
-            criterion_scores = [
-                CriterionScore(
-                    criterionId=criterion_id,
-                    marksAwarded=marks_awarded,
-                    maxMarks=max_marks_mcq,
-                    justificationQuote=answer_text.strip() or "(no answer)",
-                    justificationReason=reason,
-                    confidenceScore=1.0,
-                )
-            ]
-            consistency_audit = ConsistencyAudit(
-                overallAssessment=ConsistencyAssessment.CONSISTENT,
-                adjustments=[],
-                finalScores=[
-                    FinalCriterionScore(criterionId=criterion_id, finalScore=marks_awarded)
-                ],
-                totalScore=marks_awarded,
-                auditNotes="MCQ: deterministic scoring; correct option = full marks, wrong = 0.",
-            )
-            total_score = marks_awarded
-            max_score = max_marks_mcq
-            fe_agent = FeedbackExplainabilityAgent()
-            fe_result, fe_meta = fe_agent.execute(
-                trace_id=trace_id,
-                question_text=question_text,
-                answer_text=answer_text,
-                grounded_rubric=grounded_rubric.model_dump(by_alias=True),
-                criterion_scores=[s.model_dump(by_alias=True) for s in criterion_scores],
-                consistency_audit=consistency_audit.model_dump(by_alias=True),
-                total_score=total_score,
-                max_score=max_score,
-                max_tokens=getattr(get_settings(), "OPENAI_EVALUATION_MAX_TOKENS", 2048),
-            )
-            feedback = fe_agent.to_feedback(fe_result)
-            explainability = fe_agent.to_explainability(fe_result)
-            elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
-            percentage = (total_score / max_score * 100) if max_score > 0 else 0
-            eval_doc = {
-                "runId": run_id,
-                "scriptId": script_id,
-                "institutionId": script_doc.get("institutionId"),
-                "createdBy": script_doc.get("createdBy"),
-                "questionId": question_id,
-                "evaluationVersion": EVALUATION_VERSION,
-                "idempotencyKey": idempotency_key,
-                "groundedRubric": grounded_rubric.model_dump(by_alias=True),
-                "criterionScores": [s.model_dump(by_alias=True) for s in criterion_scores],
-                "consistencyAudit": consistency_audit.model_dump(by_alias=True),
-                "feedback": feedback.model_dump(by_alias=True),
-                "explainability": explainability.model_dump(by_alias=True),
-                "totalScore": total_score,
-                "maxPossibleScore": max_score,
-                "percentageScore": round(percentage, 2),
-                "reviewRecommendation": explainability.review_recommendation.value,
-                "reviewerOverride": None,
-                "status": EvaluationStatus.COMPLETE.value,
-                "latencyMs": elapsed_ms,
-                "tokensUsed": {
-                    "prompt": fe_meta.get("prompt_tokens", 0),
-                    "completion": fe_meta.get("completion_tokens", 0),
-                    "total": fe_meta.get("prompt_tokens", 0) + fe_meta.get("completion_tokens", 0),
-                },
-                "createdAt": datetime.now(timezone.utc),
-            }
-            EvaluationResultRepository().insert_one(eval_doc)
-            _check_script_completion(script_id)
-            structured_log(
-                "info",
-                f"Evaluation complete (MCQ) for script={script_id} question={question_id}",
-                trace_id=trace_id,
-                script_id=script_id,
-                agent_name="evaluate_question",
-                duration_ms=elapsed_ms,
-            )
-            tasks_total.labels(queue="evaluation", status="success").inc()
-            return
 
         settings = get_settings()
         eval_max_tokens = getattr(settings, "OPENAI_EVALUATION_MAX_TOKENS", 2048)

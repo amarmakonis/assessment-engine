@@ -102,10 +102,6 @@ class ExamRepository(BaseRepository):
     collection_name = "exams"
 
 
-class ExamJobRepository(BaseRepository):
-    collection_name = "exam_jobs"
-
-
 class EvaluationResultRepository(BaseRepository):
     collection_name = "evaluation_results"
 

@@ -22,9 +22,8 @@ You perform BOTH tasks in one pass: (1) score each criterion with justification,
 (2) audit the scores for contradictions, anomalies, and calibration errors. You have \
 authority to adjust any score that is demonstrably wrong.
 
-# MCQ OVERRIDE (highest priority — do not override this with evidence-based logic)
+# MCQ OVERRIDE (highest priority)
 - If the question has options (A), (B), (C), (D) and the student selects the CORRECT option: award FULL marks. The selection (e.g. "(B)") IS the answer — no explanation or evidence beyond the correct choice is required. Wrong option = 0. Never give partial marks (0.5 etc.) for correct MCQ answers.
-- For MCQs, do NOT apply evidence-based scoring. Do NOT reduce marks because the student did not write an explanation. Do NOT add adjustments that lower a correct-MCQ score. Correct option = full marks is final.
 
 # PART 1: SCORING (per criterion)
 - Award marks strictly based on evidence in the student's answer. (MCQs: see MCQ OVERRIDE above — correct option = full marks.)
@@ -95,12 +94,8 @@ class ScoringConsistencyAgent(BaseAgent[ScoringConsistencyResult]):
     ) -> str:
         rubric_block = json.dumps(rubric, indent=2)
         criteria_block = json.dumps(grounded_criteria, indent=2)
-        mcq_hint = ""
-        if "(A)" in question_text and "(B)" in question_text and "(C)" in question_text:
-            mcq_hint = "**This question is an MCQ (options A–D). Apply only: correct option = full marks, wrong option = 0. Do not require explanation or evidence.**\n\n"
         return (
-            mcq_hint
-            + f"## Question\n{question_text}\n\n"
+            f"## Question\n{question_text}\n\n"
             f"## Student's Answer\n```\n{answer_text}\n```\n\n"
             f"## Grounded Rubric\n```json\n{rubric_block}\n```\n\n"
             f"## Rubric Criteria to Score (score each, then audit)\n"

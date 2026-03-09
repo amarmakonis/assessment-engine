@@ -25,17 +25,12 @@ Given the raw text extracted from a question paper and/or rubric document, produ
 3. **OR questions = one question, one mark total.** When the paper has "(a) ... OR (b) ..." (student answers either (a) or (b)), output ONE question: include the full text of both options in questionText, and set maxMarks to the marks for ONE option only (e.g. if (a) has 3 and (b) has 3, use maxMarks 3 so the total is not 6). The sum of all questions' maxMarks must match the document total (e.g. 80).
 4. **Extract exact marks per question.** Use the marks exactly as printed (e.g. "[5 marks]", "(2)", "Marks: 4"). Do not scale or redistribute. The sum of all maxMarks must equal the stated maximum (e.g. Maximum Marks : 80).
 5. Extract EVERY question from the document (English only). Do not skip any.
-6. **Full question text — include everything.** For each question, `questionText` must contain the COMPLETE question as it appears on the paper. This includes:
-   - The main prompt or stem (e.g. "Identify the ancient ruler... with the help of following information and choose the correct option :").
-   - **Any "following information", passage, bullet list, or boxed content** that appears between the stem and the options. If the question says "with the help of following information" or "read the passage below" or "given below", you MUST include that information (bullets, paragraph, or box) in questionText. Do not drop it — without it the question is incomplete.
-   - The options line(s): "Options :" and (A) ... (B) ... (C) ... (D) (or equivalent).
-   Do not truncate or omit the middle content. Preserve the EXACT text (English only). For OR questions, keep both (a) and (b) in questionText so the evaluator can tell which option the student answered.
-7. For rubrics: if a separate rubric document is provided, map each criterion to its corresponding question. Keep or refine descriptions to be SPECIFIC and measurable (what exactly gets full vs partial marks).
-8. If no rubric is provided, generate specific default rubric criteria — not vague ones like "overall quality". Each criterion must name concrete requirements (e.g. key terms, steps, or components the answer must include). Each criterion's maxMarks must sum to the question's maxMarks.
+6. Preserve the EXACT question text as written (English only). For OR questions, keep both (a) and (b) in questionText so the evaluator can tell which option the student answered.
+7. For rubrics: if a separate rubric document is provided, map each criterion to its corresponding question.
+8. If no rubric is provided, generate sensible default rubric criteria. Each criterion's maxMarks must sum to the question's maxMarks.
 9. Extract the exam title and subject if mentioned.
 10. If the document has sections (Section A, B, etc.), still extract individual questions (English only). Use the printed question number for each.
 11. Sub-questions (a), (b), (c) that are all to be answered (no OR) may be separate questions if they have separate marks; if they share one mark block, combine. For "(a) ... OR (b) ..." always one question with maxMarks = one option's marks.
-12. **MCQ / passage-based questions.** When a question refers to "following information", "given below", "read the passage", or has a bullet list or box between the stem and the options, that content is part of the question. Include it in full in questionText (stem + information/passage/bullets + "Options :" + (A)(B)(C)(D)). Omitting it makes the question unanswerable.
 
 ## OUTPUT SCHEMA (strict JSON)
 {
@@ -44,7 +39,7 @@ Given the raw text extracted from a question paper and/or rubric document, produ
   "questions": [
     {
       "questionNumber": <number, as printed on the document e.g. 1, 2, 24 — required for correct numbering>,
-      "questionText": "string — the FULL question: stem + any 'following information' / passage / bullet list / box + options (A)(B)(C)(D). Do not omit the middle content.",
+      "questionText": "string — the full question text (for OR questions, include both (a) and (b) options)",
       "maxMarks": number — exact marks for this question (for OR questions, the marks for one option only, e.g. 3 not 6),
       "rubric": [
         { "description": "string", "maxMarks": number }
@@ -83,9 +78,7 @@ def extract_exam_from_text(
     """
     Use OpenAI to parse raw document text into structured exam data.
     """
-    from app.config import get_settings
     gateway = get_llm_gateway()
-    model = get_settings().OPENAI_MODEL_EXAM_EXTRACTION or None
 
     user_prompt_parts = ["## QUESTION PAPER TEXT\n", question_paper_text]
     if rubric_text:
@@ -99,7 +92,6 @@ def extract_exam_from_text(
         user_prompt=user_prompt,
         temperature=0.0,
         max_tokens=8192,
-        model=model,
     )
 
     content = llm_response.content.strip()

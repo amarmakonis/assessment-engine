@@ -4,7 +4,6 @@ Database repository singletons.
 
 from app.infrastructure.db.repositories import (
     EvaluationResultRepository,
-    ExamJobRepository,
     ExamRepository,
     OCRPageResultRepository,
     ScriptRepository,
@@ -17,7 +16,6 @@ __all__ = [
     "OCRPageResultRepository",
     "ScriptRepository",
     "ExamRepository",
-    "ExamJobRepository",
     "EvaluationResultRepository",
     "UserRepository",
 ]

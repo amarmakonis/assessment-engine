@@ -88,15 +88,12 @@ Your rubrics must be detailed enough that two independent graders would assign t
 - For questions worth 7-10 marks: use 4-6 criteria.
 - For questions worth > 10 marks: use 5-7 criteria.
 
-### 4. DESCRIPTION QUALITY — AVOID VAGUENESS
-- Each criterion description must be SPECIFIC, MEASURABLE, and ACTIONABLE. Vague rubrics are NOT acceptable.
-- BAD (vague): "Good explanation", "Understanding of the concept", "Overall quality", "Clear presentation", "Relevant content".
-- GOOD (specific): "Accurately explains the mechanism of natural selection with at least 2 concrete examples from different species."
-- GOOD: "Identifies both cause X and effect Y with correct terminology; partial credit if one is missing or incorrect."
-- For EVERY criterion: state exactly what a full-marks answer must include or demonstrate, and what would lose marks.
-- Tie criteria to the QUESTION CONTENT (e.g. "correctly names the three stages of mitosis" not "demonstrates knowledge").
-- Do NOT use criteria that could apply to any question (e.g. "Answers the question", "Relevance").
-- Include what a FULL-MARKS answer looks like and what causes partial or zero credit.
+### 4. DESCRIPTION QUALITY
+- Each criterion description must be SPECIFIC and ACTIONABLE.
+- BAD: "Good explanation" — too vague.
+- GOOD: "Accurately explains the mechanism of natural selection with at least 2 concrete examples from different species."
+- Include what a FULL-MARKS answer looks like in the description.
+- Mention what would cause partial credit deduction.
 
 ### 5. BLOOM'S TAXONOMY ALIGNMENT
 - Tag each criterion with the cognitive level it tests:
@@ -129,11 +126,6 @@ Your rubrics must be detailed enough that two independent graders would assign t
 - Criterion marks MUST sum to the question's maxMarks. Verify this before outputting.
 - Do NOT repeat criteria across different questions unless they genuinely apply.
 - Do NOT use filler criteria like "Presentation" or "Neatness" unless the question specifically requires visual output.
-- NEVER output vague criteria. Every description must name concrete things the answer must contain or do (e.g. specific facts, steps, or components from the question).
-"""
-
-VAGUENESS_REMINDER = """
-Reminder: Each rubric criterion description must be SPECIFIC to the question — name exact concepts, steps, or components that must appear in the answer. Avoid any phrase that could apply to any subject (e.g. "demonstrates understanding", "quality of response"). If a criterion is vague, rewrite it to be measurable.
 """
 
 
@@ -163,9 +155,7 @@ def build_rubrics_for_questions(
     Generate detailed rubrics for a list of questions.
     Each question dict should have: questionText, maxMarks.
     """
-    from app.config import get_settings
     gateway = get_llm_gateway()
-    model = get_settings().OPENAI_MODEL_RUBRIC_BUILDER or None
 
     question_summary = []
     for i, q in enumerate(questions):
@@ -175,11 +165,8 @@ def build_rubrics_for_questions(
 
     user_prompt = (
         f"Subject: {subject}\n\n"
-        f"Generate detailed, SPECIFIC rubrics for these {len(questions)} questions. "
-        "Each criterion must name concrete, measurable requirements (e.g. specific facts, steps, or components from the question). "
-        "Do not use vague criteria like 'understanding', 'quality', or 'relevance' without specifying what is being measured.\n\n"
+        f"Generate detailed rubrics for these {len(questions)} questions:\n\n"
         + "\n\n---\n\n".join(question_summary)
-        + "\n\n" + VAGUENESS_REMINDER
     )
 
     llm_response = gateway.complete(
@@ -187,7 +174,6 @@ def build_rubrics_for_questions(
         user_prompt=user_prompt,
         temperature=0.0,  # Deterministic: same questions → same rubrics
         max_tokens=8192,
-        model=model,
     )
 
     content = llm_response.content.strip()
