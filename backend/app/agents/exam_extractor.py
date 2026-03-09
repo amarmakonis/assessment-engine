@@ -105,8 +105,21 @@ def extract_exam_from_text(
     try:
         data = json.loads(content)
         return ExtractedExam.model_validate(data)
+    except json.JSONDecodeError as exc:
+        preview = (content[:500] + "…") if len(content) > 500 else content
+        logger.error(
+            "Exam extraction: invalid JSON from LLM (msg=%s, preview=%s)",
+            exc,
+            preview,
+        )
+        raise ValueError(f"Invalid JSON from document extraction: {exc}") from exc
     except Exception as exc:
-        logger.error(f"Failed to parse exam extraction response: {exc}")
+        preview = (content[:500] + "…") if len(content) > 500 else content
+        logger.error(
+            "Exam extraction: parse/validation failed (exc=%s, preview=%s)",
+            exc,
+            preview,
+        )
         raise ValueError(f"Could not parse exam from document: {exc}") from exc
 
 
