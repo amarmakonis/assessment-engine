@@ -78,23 +78,6 @@ class CreateExamRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class AddQuestionInput(BaseModel):
-    """Payload for adding a single question to an existing exam (e.g. missed 34.2)."""
-    question_label: str | None = Field(default=None, alias="questionLabel")
-    question_text: str = Field(alias="questionText", min_length=1)
-    max_marks: float = Field(alias="maxMarks", gt=0)
-    rubric: list[RubricCriterionInput] = Field(default_factory=list)
-    model_config = {"populate_by_name": True}
-
-
-class UpdateQuestionInput(BaseModel):
-    """Payload for updating question text, marks, or rubric."""
-    question_text: str | None = Field(default=None, alias="questionText")
-    max_marks: float | None = Field(default=None, alias="maxMarks", gt=0)
-    rubric: list[RubricCriterionInput] | None = None
-    model_config = {"populate_by_name": True}
-
-
 @exam_bp.route("/")
 class ExamListView(MethodView):
     @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
@@ -163,18 +146,7 @@ class ExamUploadView(MethodView):
                 extract_text_from_image_via_vision,
             )
 
-        try:
-            extracted = extract_exam_from_text(question_text, rubric_text)
-        except ValueError as e:
-            logger.warning("Exam extraction parse/validation failed: %s", e)
-            raise ValidationError(
-                f"Could not parse exam from document: {e!s}"
-            ) from e
-        except Exception as e:
-            logger.exception("Exam extraction failed")
-            raise ValidationError(
-                f"Exam extraction failed: {e!s}"
-            ) from e
+        extracted = extract_exam_from_text(question_text, rubric_text)
 
         stated_max = _detect_stated_maximum_marks(question_text)
         extracted_total = sum(q.max_marks for q in extracted.questions)
@@ -267,110 +239,6 @@ class ExamDetailView(MethodView):
             raise NotFoundError("Exam", exam_id)
         ExamRepository().delete_one(exam_id, institution_id)
         return {"message": "Exam deleted", "examId": exam_id}
-
-
-@exam_bp.route("/<exam_id>/questions")
-class ExamQuestionsView(MethodView):
-    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
-    def post(self, exam_id: str):
-        """Add a missing question to an existing exam (e.g. 34.2 that was not detected)."""
-        institution_id = get_current_institution_id()
-        doc = ExamRepository().find_by_id(exam_id, institution_id)
-        if not doc:
-            raise NotFoundError("Exam", exam_id)
-        if not can_see_all_institution_data() and doc.get("createdBy") != get_current_user_id():
-            raise NotFoundError("Exam", exam_id)
-
-        data = AddQuestionInput.model_validate(request.get_json())
-        questions = list(doc.get("questions") or [])
-        next_idx = len(questions) + 1
-        if data.question_label and str(data.question_label).strip():
-            raw = str(data.question_label).strip().lower()
-            q_id = f"q{raw}" if not raw.startswith("q") else raw
-        else:
-            q_id = f"q{next_idx}"
-
-        rubric_criteria = []
-        if data.rubric and any(c.description.strip() for c in data.rubric):
-            for j, c in enumerate(data.rubric, start=1):
-                rubric_criteria.append({
-                    "criterionId": f"{q_id}_c{j}",
-                    "description": c.description.strip(),
-                    "maxMarks": c.max_marks,
-                })
-        if not rubric_criteria:
-            rubric_criteria.append({
-                "criterionId": f"{q_id}_c1",
-                "description": "Overall answer quality",
-                "maxMarks": data.max_marks,
-            })
-
-        new_question = {
-            "questionId": q_id,
-            "questionText": data.question_text.strip(),
-            "maxMarks": data.max_marks,
-            "rubric": rubric_criteria,
-        }
-        questions.append(new_question)
-        total_marks = (doc.get("totalMarks") or 0) + data.max_marks
-        ExamRepository().update_one(
-            exam_id,
-            {"$set": {"questions": questions, "totalMarks": total_marks}},
-            institution_id,
-        )
-        return {
-            "message": "Question added",
-            "examId": exam_id,
-            "questionId": q_id,
-            "question": new_question,
-        }, 201
-
-
-@exam_bp.route("/<exam_id>/questions/<question_id>")
-class ExamQuestionDetailView(MethodView):
-    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
-    def patch(self, exam_id: str, question_id: str):
-        """Update an existing question's text, max marks, or rubric."""
-        institution_id = get_current_institution_id()
-        doc = ExamRepository().find_by_id(exam_id, institution_id)
-        if not doc:
-            raise NotFoundError("Exam", exam_id)
-        if not can_see_all_institution_data() and doc.get("createdBy") != get_current_user_id():
-            raise NotFoundError("Exam", exam_id)
-
-        data = UpdateQuestionInput.model_validate(request.get_json())
-        questions = list(doc.get("questions") or [])
-        found_idx = None
-        for i, q in enumerate(questions):
-            if (q.get("questionId") or "").lower() == question_id.lower():
-                found_idx = i
-                break
-        if found_idx is None:
-            raise NotFoundError("Question", question_id)
-
-        q = questions[found_idx]
-        if data.question_text is not None:
-            q["questionText"] = data.question_text.strip()
-        if data.max_marks is not None:
-            q["maxMarks"] = data.max_marks
-        if data.rubric is not None and len(data.rubric) > 0:
-            q_id = q.get("questionId", f"q{found_idx + 1}")
-            q["rubric"] = [
-                {
-                    "criterionId": f"{q_id}_c{j}",
-                    "description": c.description.strip(),
-                    "maxMarks": c.max_marks,
-                }
-                for j, c in enumerate(data.rubric, start=1)
-            ]
-        questions[found_idx] = q
-        total_marks = sum(qu.get("maxMarks", 0) for qu in questions)
-        ExamRepository().update_one(
-            exam_id,
-            {"$set": {"questions": questions, "totalMarks": total_marks}},
-            institution_id,
-        )
-        return {"message": "Question updated", "examId": exam_id, "questionId": question_id}
 
 
 def _extract_text_from_upload(file_obj, pdf_extractor, docx_extractor, image_extractor) -> str:
