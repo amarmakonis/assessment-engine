@@ -225,7 +225,7 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/assessment-engine/backend
 Environment="PATH=/home/ubuntu/assessment-engine/backend/venv/bin"
-ExecStart=/home/ubuntu/assessment-engine/backend/venv/bin/gunicorn -w 2 -b 127.0.0.1:5000 wsgi:app
+ExecStart=/home/ubuntu/assessment-engine/backend/venv/bin/gunicorn -w 2 -b 127.0.0.1:5000 --timeout 300 wsgi:app
 Restart=always
 
 [Install]
@@ -304,7 +304,7 @@ sudo systemctl start aae-celery-ocr aae-celery-evaluation
 sudo systemctl status aae-celery-ocr aae-celery-evaluation
 ```
 
-If your `.env` is not at project root or systemd does not load it, replace `EnvironmentFile=...` with explicit `Environment="KEY=value"` lines for `MONGO_URI`, `OPENAI_API_KEY`, `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, etc.
+If your `.env` is not at project root or systemd does not load it, add explicit `Environment="KEY=value"` lines. **Important:** In systemd, `%` is special. If you set `MONGO_URI` in the unit file, escape `%` as `%%` (e.g. `mako%%401731` instead of `mako%401731`). Otherwise you get "Failed to resolve specifiers in MONGO_URI ... Invalid slot".
 
 ---
 
@@ -332,6 +332,9 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         client_max_body_size 50M;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
 
     location /api/docs/ {
@@ -382,6 +385,8 @@ Create an account via Sign Up and start using the app.
 
 | Issue | Fix |
 |-------|-----|
+| 504 Gateway Timeout on upload/exam | Nginx proxy timeout is too short. In `location /api/` add `proxy_read_timeout 300s;` (and `proxy_connect_timeout` / `proxy_send_timeout` if needed), then `sudo nginx -t` and `sudo systemctl reload nginx`. |
+| "Failed to resolve specifiers in MONGO_URI ... Invalid slot" | In Celery (or backend) systemd unit, `MONGO_URI` contains `%` (e.g. `%40`). In systemd, escape it as `%%` — e.g. `mako%%401731` instead of `mako%401731`. Then `sudo systemctl daemon-reload` and restart the service. |
 | 502 Bad Gateway | `sudo systemctl status aae-backend` — check Flask is up; `sudo journalctl -u aae-backend -f` for logs |
 | MongoDB connection failed | Verify Atlas IP allowlist includes EC2 IP or `0.0.0.0/0` |
 | Out of memory | Use `t3.small` or larger; ensure MongoDB Atlas is used (not local Mongo) |

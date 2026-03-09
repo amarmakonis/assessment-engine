@@ -144,6 +144,11 @@ export const evaluationAPI = {
     api.post(`/evaluation/results/${resultId}/override`, { overrideScore, note }),
   reEvaluate: (scriptId: string) =>
     api.post(`/evaluation/scripts/${scriptId}/re-evaluate`),
+  addMissedAnswer: (scriptId: string, questionId: string, answerText: string) =>
+    api.put<{ message: string; scriptId: string; questionId: string; runId: string }>(
+      `/evaluation/scripts/${scriptId}/answers/${questionId}`,
+      { answerText }
+    ),
   deleteResult: (resultId: string) =>
     api.delete(`/evaluation/results/${resultId}/override`),
   deleteScript: (scriptId: string) => api.delete(`/evaluation/scripts/${scriptId}`),
@@ -176,6 +181,10 @@ export const examAPI = {
     }>("/exams/", { params }),
   get: (examId: string) => api.get<any>(`/exams/${examId}`),
   delete: (examId: string) => api.delete(`/exams/${examId}`),
+  addQuestion: (examId: string, data: { questionLabel?: string; questionText: string; maxMarks: number; rubric?: { description: string; maxMarks: number }[] }) =>
+    api.post<{ message: string; examId: string; questionId: string; question: any }>(`/exams/${examId}/questions`, data),
+  updateQuestion: (examId: string, questionId: string, data: { questionText?: string; maxMarks?: number; rubric?: { description: string; maxMarks: number }[] }) =>
+    api.patch<{ message: string }>(`/exams/${examId}/questions/${encodeURIComponent(questionId)}`, data),
 };
 
 export const dashboardAPI = {

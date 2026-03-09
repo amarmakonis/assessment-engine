@@ -17,6 +17,8 @@ import {
   TrendingUp,
   Trash2,
   Square,
+  PlusCircle,
+  X,
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -41,6 +43,10 @@ export function EvaluationPage() {
   const [showStopModal, setShowStopModal] = useState(false);
   const [showDeleteScriptModal, setShowDeleteScriptModal] = useState(false);
   const [deleteResultId, setDeleteResultId] = useState<string | null>(null);
+  const [addMissedQuestionId, setAddMissedQuestionId] = useState<string | null>(null);
+  const [addMissedAnswerText, setAddMissedAnswerText] = useState("");
+  const [addMissedQuestionLabel, setAddMissedQuestionLabel] = useState("");
+  const [savingMissedAnswer, setSavingMissedAnswer] = useState(false);
 
   function loadData() {
     if (!scriptId) return;
@@ -86,6 +92,34 @@ export function EvaluationPage() {
       loadData();
     } catch {
       toast.error("Failed to apply override");
+    }
+  }
+
+  function openAddMissedAnswer(questionId: string, label: string, currentText: string) {
+    setAddMissedQuestionId(questionId);
+    setAddMissedQuestionLabel(label);
+    setAddMissedAnswerText(currentText || "");
+  }
+
+  async function saveMissedAnswer() {
+    if (!scriptId || !addMissedQuestionId || !addMissedAnswerText.trim()) {
+      toast.error("Please enter the answer text.");
+      return;
+    }
+    setSavingMissedAnswer(true);
+    try {
+      await evaluationAPI.addMissedAnswer(scriptId, addMissedQuestionId, addMissedAnswerText.trim());
+      toast.success("Answer saved. Re-evaluation for this question has been triggered.");
+      setAddMissedQuestionId(null);
+      setAddMissedAnswerText("");
+      loadData();
+    } catch (e: unknown) {
+      const msg = e && typeof e === "object" && "response" in e && typeof (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message === "string"
+        ? (e as { response: { data: { error: { message: string } } } }).response.data.error.message
+        : "Failed to save answer";
+      toast.error(msg);
+    } finally {
+      setSavingMissedAnswer(false);
     }
   }
 
@@ -276,6 +310,7 @@ export function EvaluationPage() {
         {data.evaluations.map((ev) => {
           const scriptAnswer = data.answers?.find((a) => a.questionId === ev.questionId);
           const questionInfo = data.questions?.find((q) => q.questionId === ev.questionId);
+          const questionLabel = `Q${ev.questionId.replace(/^q/i, "")}`;
           return (
             <QuestionAccordion
               key={ev.questionId}
@@ -293,10 +328,90 @@ export function EvaluationPage() {
               setOverrideNote={setOverrideNote}
               submitOverride={submitOverride}
               onDelete={(id) => setDeleteResultId(id)}
+              onAddMissedAnswer={openAddMissedAnswer}
+              questionLabel={questionLabel}
             />
           );
         })}
       </div>
+
+      {/* Add missed answer modal */}
+      {addMissedQuestionId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !savingMissedAnswer && (setAddMissedQuestionId(null), setAddMissedAnswerText(""))}
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-lg rounded-2xl bg-card border border-border shadow-card-hover overflow-hidden animate-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-missed-title"
+          >
+            <div className="bg-gradient-to-br from-violet-500/10 via-transparent to-amber-500/10 border-b border-border px-6 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <h3 id="add-missed-title" className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-accent-purple" />
+                  Add missed answer — {addMissedQuestionLabel}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => !savingMissedAnswer && (setAddMissedQuestionId(null), setAddMissedAnswerText(""))}
+                  className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-text-secondary mt-1">
+                Paste or type the answer that was missed by segmentation. It will be saved and re-evaluated automatically.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <label htmlFor="missed-answer-text" className="block text-sm font-medium text-text-primary">
+                Answer text
+              </label>
+              <textarea
+                id="missed-answer-text"
+                value={addMissedAnswerText}
+                onChange={(e) => setAddMissedAnswerText(e.target.value)}
+                placeholder="Enter the full answer for this question as it appears in the script..."
+                className="input-field w-full min-h-[140px] resize-y font-mono text-sm"
+                rows={5}
+                disabled={savingMissedAnswer}
+              />
+            </div>
+            <div className="flex justify-end gap-3 px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => !savingMissedAnswer && (setAddMissedQuestionId(null), setAddMissedAnswerText(""))}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveMissedAnswer}
+                disabled={savingMissedAnswer || !addMissedAnswerText.trim()}
+                className="btn-primary flex items-center gap-2"
+              >
+                {savingMissedAnswer ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-4 h-4" />
+                    Save & re-evaluate
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -316,6 +431,8 @@ function QuestionAccordion({
   setOverrideNote,
   submitOverride,
   onDelete,
+  onAddMissedAnswer,
+  questionLabel,
 }: {
   evaluation: EvaluationResult;
   answerText?: string;
@@ -331,6 +448,8 @@ function QuestionAccordion({
   setOverrideNote: (v: string) => void;
   submitOverride: (id: string) => void;
   onDelete?: (id: string) => void | Promise<void>;
+  onAddMissedAnswer?: (questionId: string, label: string, currentText: string) => void;
+  questionLabel: string;
 }) {
   const isNotAttempted = (ev.totalScore === 0 && (!ev.criterionScores || ev.criterionScores.length === 0));
   const pct = ev.maxPossibleScore > 0 ? (ev.totalScore / ev.maxPossibleScore) * 100 : 0;
@@ -374,6 +493,17 @@ function QuestionAccordion({
           <div className={clsx("h-full rounded-full", qColors.bg)} style={{ width: `${pct}%` }} />
         </div>
             {isExpanded ? <ChevronUp className="w-5 h-5 text-text-muted" /> : <ChevronDown className="w-5 h-5 text-text-muted" />}
+            {(isFlagged || answerText == null || answerText === "") && onAddMissedAnswer && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onAddMissedAnswer(ev.questionId, questionLabel, answerText ?? ""); }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 text-xs font-medium transition-colors"
+                title="Add or correct the answer for this question"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Add answer
+              </button>
+            )}
             {onDelete && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
@@ -409,6 +539,16 @@ function QuestionAccordion({
               <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap min-h-[2rem]">
                 {answerText != null && answerText !== "" ? answerText : <span className="italic text-text-muted">No answer provided for this question.</span>}
               </p>
+              {(isFlagged || answerText == null || answerText === "") && onAddMissedAnswer && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onAddMissedAnswer(ev.questionId, questionLabel, answerText ?? ""); }}
+                  className="mt-3 w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500/15 to-amber-500/15 border border-violet-200/60 text-violet-700 dark:text-violet-300 hover:from-violet-500/25 hover:to-amber-500/25 transition-all font-medium text-sm"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Add missed answer
+                </button>
+              )}
             </div>
           </div>
 

@@ -340,6 +340,68 @@ class StopEvaluationView(MethodView):
         return {"message": "Evaluation stopped", "scriptId": script_id}
 
 
+@evaluation_bp.route("/scripts/<script_id>/answers/<question_id>")
+class ScriptAnswerView(MethodView):
+    @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])
+    def put(self, script_id: str, question_id: str):
+        """Add or correct a missed answer for one question. Updates script, removes old evaluation for that question, and triggers re-evaluation for it."""
+        import uuid
+
+        from app.config import get_settings
+        from app.domain.models.common import ScriptStatus
+
+        institution_id = get_current_institution_id()
+        script = ScriptRepository().find_by_id(script_id, institution_id)
+        if not script:
+            raise NotFoundError("Script", script_id)
+        if not can_see_all_institution_data() and script.get("createdBy") != get_current_user_id():
+            raise NotFoundError("Script", script_id)
+
+        data = request.get_json() or {}
+        answer_text = (data.get("answerText") or "").strip()
+        if not answer_text:
+            raise ValidationError("answerText is required and cannot be empty")
+
+        answers = list(script.get("answers") or [])
+        found = False
+        for a in answers:
+            if a.get("questionId") == question_id:
+                a["text"] = answer_text
+                a["isFlagged"] = False
+                found = True
+                break
+        if not found:
+            answers.append({"questionId": question_id, "text": answer_text, "isFlagged": False})
+
+        ScriptRepository().update_one(
+            script_id, {"$set": {"answers": answers, "status": ScriptStatus.EVALUATING.value}}, institution_id
+        )
+
+        # Remove existing evaluation for this script+question so the new one replaces it
+        evals = EvaluationResultRepository().find_by_script(script_id)
+        for e in evals:
+            if e.get("questionId") == question_id:
+                inst_id = e.get("institutionId") or script.get("institutionId")
+                EvaluationResultRepository().delete_one(str(e["_id"]), inst_id)
+                break
+
+        run_id = uuid.uuid4().hex
+        trace_id = uuid.uuid4().hex[:16]
+        if get_settings().USE_CELERY_REDIS:
+            from app.tasks.evaluation import evaluate_question
+            evaluate_question.delay(script_id, question_id, run_id, trace_id)
+        else:
+            from app.services.sync_pipeline import run_evaluate_question
+            run_evaluate_question(script_id, question_id, run_id, trace_id)
+
+        return {
+            "message": "Answer added and re-evaluation triggered",
+            "scriptId": script_id,
+            "questionId": question_id,
+            "runId": run_id,
+        }
+
+
 @evaluation_bp.route("/scripts/<script_id>/re-evaluate")
 class ReEvaluateView(MethodView):
     @jwt_required(roles=["SUPER_ADMIN", "INSTITUTION_ADMIN", "EXAMINER"])

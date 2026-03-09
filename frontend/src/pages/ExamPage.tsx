@@ -15,6 +15,9 @@ import {
   Upload,
   FileText,
   PenTool,
+  PlusCircle,
+  Pencil,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { clsx } from "clsx";
@@ -49,6 +52,17 @@ export function ExamPage() {
   const [createMode, setCreateMode] = useState<CreateMode>("upload");
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
   const [examToDelete, setExamToDelete] = useState<string | null>(null);
+  const [addQuestionExamId, setAddQuestionExamId] = useState<string | null>(null);
+  const [addQuestionLabel, setAddQuestionLabel] = useState("");
+  const [addQuestionText, setAddQuestionText] = useState("");
+  const [addQuestionMarks, setAddQuestionMarks] = useState(2);
+  const [addQuestionRubric, setAddQuestionRubric] = useState<RubricInput[]>([{ description: "", maxMarks: 2 }]);
+  const [savingAddQuestion, setSavingAddQuestion] = useState(false);
+  const [editQuestionExamId, setEditQuestionExamId] = useState<string | null>(null);
+  const [editQuestionId, setEditQuestionId] = useState<string | null>(null);
+  const [editQuestionText, setEditQuestionText] = useState("");
+  const [editQuestionMarks, setEditQuestionMarks] = useState(0);
+  const [savingEditQuestion, setSavingEditQuestion] = useState(false);
 
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -110,6 +124,67 @@ export function ExamPage() {
     if (!q) return;
     (q.rubric[rIdx] as any)[field] = value;
     setQuestions(updated);
+  }
+
+  function openAddQuestionModal(examId: string) {
+    setAddQuestionExamId(examId);
+    setAddQuestionLabel("");
+    setAddQuestionText("");
+    setAddQuestionMarks(2);
+    setAddQuestionRubric([{ description: "", maxMarks: 2 }]);
+  }
+
+  async function saveAddQuestion() {
+    if (!addQuestionExamId || !addQuestionText.trim()) {
+      toast.error("Please enter question text.");
+      return;
+    }
+    setSavingAddQuestion(true);
+    try {
+      const rubric = addQuestionRubric.filter((r) => r.description.trim());
+      await examAPI.addQuestion(addQuestionExamId, {
+        questionLabel: addQuestionLabel.trim() || undefined,
+        questionText: addQuestionText.trim(),
+        maxMarks: addQuestionMarks,
+        rubric: rubric.length > 0 ? rubric : undefined,
+      });
+      toast.success("Question added. Re-segment or re-evaluate scripts to use it.");
+      setAddQuestionExamId(null);
+      loadExams();
+    } catch (e: unknown) {
+      const msg = e && typeof e === "object" && "response" in e && typeof (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message === "string"
+        ? (e as { response: { data: { error: { message: string } } } }).response.data.error.message
+        : "Failed to add question";
+      toast.error(msg);
+    } finally {
+      setSavingAddQuestion(false);
+    }
+  }
+
+  function openEditQuestionModal(exam: ExamItem, q: { questionId: string; questionText: string; maxMarks: number }) {
+    setEditQuestionExamId(exam.id);
+    setEditQuestionId(q.questionId);
+    setEditQuestionText(q.questionText || "");
+    setEditQuestionMarks(q.maxMarks ?? 0);
+  }
+
+  async function saveEditQuestion() {
+    if (!editQuestionExamId || !editQuestionId) return;
+    setSavingEditQuestion(true);
+    try {
+      await examAPI.updateQuestion(editQuestionExamId, editQuestionId, {
+        questionText: editQuestionText.trim() || undefined,
+        maxMarks: editQuestionMarks,
+      });
+      toast.success("Question updated.");
+      setEditQuestionExamId(null);
+      setEditQuestionId(null);
+      loadExams();
+    } catch {
+      toast.error("Failed to update question");
+    } finally {
+      setSavingEditQuestion(false);
+    }
   }
 
   async function handleUploadCreate() {
@@ -521,18 +596,38 @@ export function ExamPage() {
 
               {expandedExam === exam.id && (
                 <div className="mt-4 pt-4 border-t border-border space-y-3">
-                  <div className="flex items-center gap-2 text-xs text-text-muted">
-                    <span>Exam ID:</span>
-                    <code className="bg-surface px-2 py-0.5 rounded font-mono border border-border">{exam.id}</code>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 text-xs text-text-muted">
+                      <span>Exam ID:</span>
+                      <code className="bg-surface px-2 py-0.5 rounded font-mono border border-border">{exam.id}</code>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openAddQuestionModal(exam.id); }}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 text-sm font-medium transition-colors"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      Add missing question
+                    </button>
                   </div>
                   {exam.questions.map((q: any, i: number) => (
-                    <div key={i} className="bg-surface border border-border rounded-lg p-3">
-                      <div className="flex justify-between items-start">
-                        <p className="text-sm text-text-primary">
-                          <span className="text-accent-blue font-mono mr-2 font-bold">Q{i + 1}</span>
+                    <div key={q.questionId ?? i} className="bg-surface border border-border rounded-lg p-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <p className="text-sm text-text-primary flex-1 min-w-0">
+                          <span className="text-accent-blue font-mono mr-2 font-bold">
+                            Q{(q.questionId || String(i + 1)).replace(/^q/i, "")}
+                          </span>
                           {q.questionText}
                         </p>
-                        <span className="text-xs text-text-muted flex-shrink-0 ml-2">{q.maxMarks} marks</span>
+                        <span className="text-xs text-text-muted flex-shrink-0">{q.maxMarks} marks</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openEditQuestionModal(exam, q); }}
+                          className="p-1.5 rounded text-text-muted hover:text-accent-blue hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          title="Edit question / marks"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       {q.rubric?.length > 0 && (
                         <div className="mt-2 pl-6 space-y-1">
@@ -549,6 +644,124 @@ export function ExamPage() {
               )}
             </GlassCard>
           ))}
+        </div>
+      )}
+
+      {/* Add missing question modal */}
+      {addQuestionExamId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !savingAddQuestion && setAddQuestionExamId(null)}
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-lg rounded-2xl bg-card border border-border shadow-card-hover overflow-hidden animate-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-q-title"
+          >
+            <div className="bg-gradient-to-br from-violet-500/10 to-amber-500/10 border-b border-border px-6 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <h3 id="add-q-title" className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-accent-purple" />
+                  Add missing question
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => !savingAddQuestion && setAddQuestionExamId(null)}
+                  className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-text-secondary mt-1">
+                Add a question that was not detected (e.g. 34.2). It will be included in segmentation and evaluation.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label htmlFor="add-q-label" className="block text-sm font-medium text-text-primary mb-1">Question number / label (optional)</label>
+                <input
+                  id="add-q-label"
+                  type="text"
+                  value={addQuestionLabel}
+                  onChange={(e) => setAddQuestionLabel(e.target.value)}
+                  placeholder="e.g. 34.2"
+                  className="input-field w-full"
+                />
+              </div>
+              <div>
+                <label htmlFor="add-q-text" className="block text-sm font-medium text-text-primary mb-1">Question text *</label>
+                <textarea
+                  id="add-q-text"
+                  value={addQuestionText}
+                  onChange={(e) => setAddQuestionText(e.target.value)}
+                  placeholder="Full question text as in the paper..."
+                  className="input-field w-full min-h-[80px] resize-y"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label htmlFor="add-q-marks" className="block text-sm font-medium text-text-primary mb-1">Marks</label>
+                <input
+                  id="add-q-marks"
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={addQuestionMarks}
+                  onChange={(e) => setAddQuestionMarks(parseFloat(e.target.value) || 0)}
+                  className="input-field w-24"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 pb-6">
+              <button type="button" onClick={() => !savingAddQuestion && setAddQuestionExamId(null)} className="btn-secondary">Cancel</button>
+              <button
+                type="button"
+                onClick={saveAddQuestion}
+                disabled={savingAddQuestion || !addQuestionText.trim()}
+                className="btn-primary flex items-center gap-2"
+              >
+                {savingAddQuestion ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><PlusCircle className="w-4 h-4" /> Add question</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit question / marks modal */}
+      {editQuestionExamId && editQuestionId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !savingEditQuestion && (setEditQuestionExamId(null), setEditQuestionId(null))} aria-hidden="true" />
+          <div className="relative w-full max-w-lg rounded-2xl bg-card border border-border shadow-card-hover overflow-hidden animate-in" role="dialog" aria-modal="true">
+            <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-accent-blue" />
+                Edit question — Q{(editQuestionId || "").replace(/^q/i, "")}
+              </h3>
+              <button type="button" onClick={() => !savingEditQuestion && (setEditQuestionExamId(null), setEditQuestionId(null))} className="p-1.5 rounded-lg text-text-muted hover:bg-surface" aria-label="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">Question text</label>
+                <textarea value={editQuestionText} onChange={(e) => setEditQuestionText(e.target.value)} className="input-field w-full min-h-[60px] resize-y" rows={2} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1">Marks</label>
+                <input type="number" min={0.5} step={0.5} value={editQuestionMarks} onChange={(e) => setEditQuestionMarks(parseFloat(e.target.value) || 0)} className="input-field w-24" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 pb-6">
+              <button type="button" onClick={() => !savingEditQuestion && (setEditQuestionExamId(null), setEditQuestionId(null))} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={saveEditQuestion} disabled={savingEditQuestion} className="btn-primary flex items-center gap-2">
+                {savingEditQuestion ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <>Save</>}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
