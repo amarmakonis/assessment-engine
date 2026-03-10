@@ -31,6 +31,14 @@ Your rubrics must be detailed enough that two independent graders would assign t
 
 ### 2. CRITERION TYPES (use the right ones per question type)
 
+**Multiple Choice Questions (MCQs) — options (A), (B), (C), (D):**
+- If the question presents four (or fewer) options and the student must choose one, it is an MCQ.
+- For MCQs output exactly ONE criterion. Correct option = full marks. Wrong option = 0.
+- Do NOT require explanation, rationale, or justification. Just option correct → full marks.
+- Do NOT state which option is correct (no "option (B)", "answer is A", or answer key). The correct answer is judged at evaluation time only; the rubric describes scoring rules only.
+- BAD: "Option (B) is correct: full marks" or "A full-marks answer will state option (B)". GOOD: "Correct option: full marks. Wrong or no option: 0."
+- Assertion–Reason and image-based MCQs are still MCQs: one criterion, option correct = full marks.
+
 **Factual / Definition questions:**
 - Accuracy of core definition (exact terminology)
 - Completeness (all required components mentioned)
@@ -126,6 +134,8 @@ Your rubrics must be detailed enough that two independent graders would assign t
 - Criterion marks MUST sum to the question's maxMarks. Verify this before outputting.
 - Do NOT repeat criteria across different questions unless they genuinely apply.
 - Do NOT use filler criteria like "Presentation" or "Neatness" unless the question specifically requires visual output.
+- For MCQs (questions with options A/B/C/D): exactly one criterion; correct option = full marks, wrong = 0. Nothing more.
+- Never include the correct answer, option letter, or answer key in any rubric description; correctness is determined at evaluation time only.
 """
 
 

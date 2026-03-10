@@ -76,6 +76,10 @@ questions q29, q30, q31, "3) 1)", "3) 2)", "3) 3)" = sub-parts of question 3 (q3
 has q31 as a single question with sub-parts, combine all three blocks into one answerText for q31. \
 If the exam has q31_1, q31_2, q31_3 as separate questionIds, map each block to the respective \
 questionId. Use the exam question structure (questionIds and order) to decide.
+8d. **Section A style (1 a, 1 b, 1a, 1b).** When the exam has q1a, q1b, q1c, … q1j (letter sub-parts \
+under question 1), students often write "1 a", "1a", "1(a)", "1. a" for the first sub-part and \
+"1 b", "1b", "1(b)", "1. b" for the second, etc. Map "1 a" or "1a" → q1a; "1 b" or "1b" → q1b; \
+"1 c" or "1c" → q1c; … "1 j" or "1j" → q1j. Do not merge all into q1; each sub-part is a separate questionId.
 9. **Essay and subject-style papers (e.g. History, long-answer).** Answers may be long \
 paragraphs or multi-page. **Preserve the full answer text** for each question: all lines, \
 all paragraphs, until the next question number or section. Use section headers, question \
@@ -84,7 +88,7 @@ Do not truncate and do not output only one line; include the **entire** student 
 for that question so the full answer is available for marking.
 10. **OR / choice questions.** If the paper has a question with "(a) ... OR (b) ...", the student \
 will have answered only one option. Map that answer to the single questionId for that question \
-(e.g. q24). Do not create separate entries for (a) and (b); one questionId, one answer text.
+(e.g. q29). Do not create separate entries for (a) and (b); one questionId, one answer text.
 11. **Confidence scoring.** Rate your overall confidence in the segmentation:
    - 0.9–1.0: Clear question markers, unambiguous mapping
    - 0.7–0.89: Most answers identifiable but some boundaries uncertain
@@ -136,12 +140,26 @@ class SegmentationAgent(BaseAgent[SegmentationResult]):
     ) -> str:
         questions_block = json.dumps(questions, indent=2)
         qids = [q.get("questionId", "") for q in questions if q.get("questionId")]
+        has_letter_subparts = any(
+            qid and len(qid) >= 3 and qid[-1].islower() and qid[-1].isalpha()
+            for qid in qids
+        )
+        has_or_questions = any(q.get("questionNumberOr") is not None for q in questions)
         order_note = (
             f"Questions are in exam order: {', '.join(qids[:5])}{'...' if len(qids) > 5 else ''}. "
             f"Use SECTION A/B/C/D in the OCR to infer section boundaries. "
             f"Section-relative numbering (e.g. '3)' in SECTION D) maps to the Nth question in that section. "
             f"Compound numbering (e.g. '3) 1)', '3) 2)') = question 3 in section, sub-parts 1, 2 — combine or split by questionId structure."
         )
+        if has_letter_subparts:
+            order_note += (
+                " This exam has letter sub-parts (e.g. q1a, q1b): map '1 a', '1a', '1(a)' → q1a; "
+                "'1 b', '1b' → q1b; etc. Each sub-part is a separate questionId."
+            )
+        if has_or_questions:
+            order_note += (
+                " Some questions are OR choices (e.g. Q2 OR Q3 stored as one questionId): map answers written after either number (e.g. '2' or '3', 'Q2' or 'Q3') to that single questionId."
+            )
         return (
             f"## Exam Questions\n"
             f"The following are the official exam questions in order. Each answer in your "

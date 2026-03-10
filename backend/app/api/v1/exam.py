@@ -65,9 +65,12 @@ class RubricCriterionInput(BaseModel):
 
 class QuestionInput(BaseModel):
     question_number: int | None = Field(default=None, alias="questionNumber")
+    question_number_or: int | None = Field(default=None, alias="questionNumberOr")
+    question_sub_part: str | None = Field(default=None, alias="questionSubPart")
     question_text: str = Field(alias="questionText", min_length=1)
     max_marks: float = Field(alias="maxMarks", gt=0)
     rubric: list[RubricCriterionInput] = Field(default_factory=list)
+    rubric_second_option: list[RubricCriterionInput] | None = Field(default=None, alias="rubricSecondOption")
     model_config = {"populate_by_name": True}
 
 
@@ -163,8 +166,11 @@ class ExamUploadView(MethodView):
                 extract_text_from_image_via_vision,
             )
 
+        stated_max = _detect_stated_maximum_marks(question_text)
         try:
-            extracted = extract_exam_from_text(question_text, rubric_text)
+            extracted = extract_exam_from_text(
+                question_text, rubric_text, stated_max_marks=stated_max, merge=False
+            )
         except ValueError as e:
             logger.warning("Exam extraction parse/validation failed: %s", e)
             raise ValidationError(
@@ -175,14 +181,6 @@ class ExamUploadView(MethodView):
             raise ValidationError(
                 f"Exam extraction failed: {e!s}"
             ) from e
-
-        stated_max = _detect_stated_maximum_marks(question_text)
-        extracted_total = sum(q.max_marks for q in extracted.questions)
-        marks_mismatch = (
-            stated_max is not None
-            and stated_max > 0
-            and abs(extracted_total - stated_max) > 0.01
-        )
 
         title_override = request.form.get("title")
         subject_override = request.form.get("subject")
@@ -213,16 +211,34 @@ class ExamUploadView(MethodView):
                         for r in rubric_map[i]
                     ]
 
+        from app.agents.exam_extractor import merge_or_questions
+
+        extracted.questions = merge_or_questions(extracted.questions)
+
+        extracted_total = sum(q.max_marks for q in extracted.questions)
+        marks_mismatch = (
+            stated_max is not None
+            and stated_max > 0
+            and abs(extracted_total - stated_max) > 0.01
+        )
+
         questions_data = []
         for q in extracted.questions:
+            rubric_second = getattr(q, "rubric_second_option", None)
             questions_data.append(QuestionInput(
                 questionNumber=q.question_number,
+                questionNumberOr=getattr(q, "question_number_or", None),
+                questionSubPart=q.question_sub_part,
                 questionText=q.question_text,
                 maxMarks=q.max_marks,
                 rubric=[
                     RubricCriterionInput(description=r.description, maxMarks=r.max_marks)
                     for r in q.rubric
                 ],
+                rubricSecondOption=[
+                    RubricCriterionInput(description=r.description, maxMarks=r.max_marks)
+                    for r in (rubric_second or [])
+                ] if rubric_second else None,
             ))
 
         create_req = CreateExamRequest(
@@ -432,8 +448,10 @@ def _create_exam_from_data(data: CreateExamRequest) -> tuple[dict, int]:
 
     questions = []
     for i, q in enumerate(data.questions, start=1):
-        # Use printed question number when present so Q23 stays q23 and Q24 stays q24
-        q_id = f"q{q.question_number}" if q.question_number is not None else f"q{i}"
+        # Use printed question number when present; add sub-part for OR questions (q29a, q29b)
+        base = q.question_number if q.question_number is not None else i
+        sub = getattr(q, "question_sub_part", None) or ""
+        q_id = f"q{base}{sub}"
         rubric_criteria = []
 
         has_real_descriptions = q.rubric and any(c.description.strip() for c in q.rubric)
@@ -460,12 +478,27 @@ def _create_exam_from_data(data: CreateExamRequest) -> tuple[dict, int]:
                 "maxMarks": q.max_marks,
             })
 
-        questions.append({
+        q_doc = {
             "questionId": q_id,
             "questionText": q.question_text,
             "maxMarks": q.max_marks,
             "rubric": rubric_criteria,
-        })
+        }
+        if q.question_number is not None:
+            q_doc["questionNumber"] = q.question_number
+        if q.question_number_or is not None:
+            q_doc["questionNumberOr"] = q.question_number_or
+        if q.rubric_second_option:
+            rubric_second_criteria = [
+                {
+                    "criterionId": f"{q_id}_or_c{j}",
+                    "description": c.description,
+                    "maxMarks": c.max_marks,
+                }
+                for j, c in enumerate(q.rubric_second_option, start=1)
+            ]
+            q_doc["rubricSecondOption"] = rubric_second_criteria
+        questions.append(q_doc)
 
     doc = {
         "institutionId": institution_id,

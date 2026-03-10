@@ -210,7 +210,7 @@ export function ExamPage() {
       loadExams();
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || "Failed to extract exam from documents";
-      toast.error(msg);
+      toast.error(msg, { id: "exam-create" });
     } finally {
       setCreating(false);
     }
@@ -260,6 +260,18 @@ export function ExamPage() {
 
   return (
     <div className="space-y-6">
+      {creating && (
+        <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50 dark:bg-slate-800/50 border border-accent-blue/30">
+          <Loader2 className="w-6 h-6 animate-spin text-accent-blue flex-shrink-0" />
+          <div>
+            <p className="font-medium text-text-primary">Creating exam…</p>
+            <p className="text-sm text-text-secondary mt-0.5">
+              This may take 1–2 minutes. Please wait — do not close or refresh the page.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="page-title">Exams</h2>
@@ -267,7 +279,12 @@ export function ExamPage() {
             Create exams by uploading question papers or entering manually
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          disabled={creating}
+          className="btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          title={creating ? "Wait for the current exam to finish creating" : undefined}
+        >
           <Plus className="w-4 h-4" />
           {showForm ? "Cancel" : "New Exam"}
         </button>
@@ -397,12 +414,12 @@ export function ExamPage() {
               <button
                 onClick={handleUploadCreate}
                 disabled={creating || !questionFile}
-                className="btn-primary w-full"
+                className="btn-primary w-full disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {creating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-                    Extracting with AI... (1–3 min, please wait)
+                    Creating exam… This may take 1–2 minutes. Please wait.
                   </>
                 ) : (
                   "Extract & Create Exam"
@@ -542,7 +559,12 @@ export function ExamPage() {
             title="No exams yet"
             description="Create an exam with questions and rubrics to start grading answer scripts."
             action={
-              <button onClick={() => setShowForm(true)} className="btn-primary inline-flex items-center gap-2">
+              <button
+                onClick={() => setShowForm(true)}
+                disabled={creating}
+                className="btn-primary inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                title={creating ? "Wait for the current exam to finish creating" : undefined}
+              >
                 <Plus className="w-4 h-4" />
                 New Exam
               </button>
@@ -615,7 +637,9 @@ export function ExamPage() {
                       <div className="flex justify-between items-start gap-2">
                         <p className="text-sm text-text-primary flex-1 min-w-0">
                           <span className="text-accent-blue font-mono mr-2 font-bold">
-                            Q{(q.questionId || String(i + 1)).replace(/^q/i, "")}
+                            {q.questionNumberOr != null && q.questionNumber != null
+                              ? `Q${q.questionNumber} OR Q${q.questionNumberOr}`
+                              : `Q${(q.questionId || String(i + 1)).replace(/^q/i, "")}`}
                           </span>
                           {q.questionText}
                         </p>
@@ -630,12 +654,39 @@ export function ExamPage() {
                         </button>
                       </div>
                       {q.rubric?.length > 0 && (
-                        <div className="mt-2 pl-6 space-y-1">
-                          {q.rubric.map((r: any, j: number) => (
-                            <p key={j} className="text-xs text-text-secondary">
-                              • {r.description} ({r.maxMarks} marks)
-                            </p>
-                          ))}
+                        <div className="mt-2 space-y-2">
+                          {q.rubricSecondOption?.length ? (
+                            <>
+                              <div className="pl-6 space-y-1">
+                                <p className="text-xs font-medium text-text-primary">
+                                  Criteria for Q{q.questionNumber ?? (q.questionId || "").replace(/^q/i, "")} ({q.rubric?.reduce((s: number, r: any) => s + (r.maxMarks ?? 0), 0) ?? 0} marks)
+                                </p>
+                                {q.rubric.map((r: any, j: number) => (
+                                  <p key={j} className="text-xs text-text-secondary">
+                                    • {r.description} ({r.maxMarks} marks)
+                                  </p>
+                                ))}
+                              </div>
+                              <div className="pl-6 space-y-1">
+                                <p className="text-xs font-medium text-text-primary">
+                                  Criteria for Q{q.questionNumberOr} ({q.rubricSecondOption?.reduce((s: number, r: any) => s + (r.maxMarks ?? 0), 0) ?? 0} marks)
+                                </p>
+                                {q.rubricSecondOption.map((r: any, j: number) => (
+                                  <p key={j} className="text-xs text-text-secondary">
+                                    • {r.description} ({r.maxMarks} marks)
+                                  </p>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="pl-6 space-y-1">
+                              {q.rubric.map((r: any, j: number) => (
+                                <p key={j} className="text-xs text-text-secondary">
+                                  • {r.description} ({r.maxMarks} marks)
+                                </p>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

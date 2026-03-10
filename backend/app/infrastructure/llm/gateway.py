@@ -262,6 +262,84 @@ class OpenAIGateway:
             latency_ms=elapsed_ms,
         )
 
+    @retry(
+        retry=retry_if_exception_type((APITimeoutError, OpenAIRateLimitError)),
+        wait=wait_random_exponential(multiplier=1, min=2, max=60),
+        stop=stop_after_attempt(5),
+        reraise=True,
+    )
+    def vision_extract_text_multi(
+        self,
+        image_paths: list[str | Path],
+        *,
+        system_prompt: str | None = None,
+        detail: str = "high",
+    ) -> LLMResponse:
+        """
+        Send multiple images in one API call. Extract text from each in order.
+        Returns combined text with "--- Page N ---" markers. Use for faster PDF extraction.
+        """
+        if not image_paths:
+            return LLMResponse(content="", prompt_tokens=0, completion_tokens=0, total_tokens=0, model="", latency_ms=0)
+
+        content_parts: list[dict] = []
+        for i, path in enumerate(image_paths):
+            path = Path(path)
+            if not path.exists():
+                raise LLMError(f"Image not found: {path}")
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            suffix = path.suffix.lower()
+            mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+            mime_type = mime_map.get(suffix, "image/png")
+        content_parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime_type};base64,{b64}", "detail": detail},
+        })
+
+        content_parts.append({
+            "type": "text",
+            "text": (
+                f"Extract ALL handwritten and printed text from these {len(image_paths)} document image(s) in order. "
+                f"For each image, output exactly: --- Page N --- (with N = 1, 2, ...) on its own line, "
+                f"then the extracted text. Preserve layout, line breaks, and structure. "
+                f"Output ONLY the extracted text — no commentary. If unreadable, write [illegible]."
+            ),
+        })
+
+        ocr_system = system_prompt or (
+            "You are a precise OCR engine. Extract ALL text from document images. "
+            "Preserve layout, line breaks, and paragraph structure. Output ONLY extracted text — "
+            "no commentary, no descriptions. Preserve original spelling and punctuation."
+        )
+        vision_model = get_settings().OPENAI_MODEL_VISION
+        start = time.perf_counter_ns()
+        try:
+            response = self._client.chat.completions.create(
+                model=vision_model,
+                messages=[
+                    {"role": "system", "content": ocr_system},
+                    {"role": "user", "content": content_parts},
+                ],
+                temperature=0.0,
+                max_tokens=self._max_tokens,
+            )
+        except (APITimeoutError, OpenAIRateLimitError):
+            raise
+        except APIError as exc:
+            raise LLMError(f"OpenAI Vision API error: {exc}") from exc
+
+        elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
+        usage = response.usage
+        return LLMResponse(
+            content=response.choices[0].message.content or "",
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
+            total_tokens=usage.total_tokens if usage else 0,
+            model=response.model,
+            latency_ms=elapsed_ms,
+        )
+
     def health_check(self) -> bool:
         try:
             self._client.models.list()

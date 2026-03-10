@@ -385,7 +385,7 @@ Create an account via Sign Up and start using the app.
 
 | Issue | Fix |
 |-------|-----|
-| 504 Gateway Timeout on upload/exam | Nginx proxy timeout is too short. In `location /api/` add `proxy_read_timeout 300s;` (and `proxy_connect_timeout` / `proxy_send_timeout` if needed), then `sudo nginx -t` and `sudo systemctl reload nginx`. |
+| 504 Gateway Timeout on upload/exam | Exam creation takes 1–2 minutes (LLM extraction + rubric generation). Gunicorn must use `--timeout 300` and Nginx must have `proxy_connect_timeout 300s; proxy_send_timeout 300s; proxy_read_timeout 300s;` in `location /api/`. Otherwise the request is killed before completion. |
 | "Failed to resolve specifiers in MONGO_URI ... Invalid slot" | In Celery (or backend) systemd unit, `MONGO_URI` contains `%` (e.g. `%40`). In systemd, escape it as `%%` — e.g. `mako%%401731` instead of `mako%401731`. Then `sudo systemctl daemon-reload` and restart the service. |
 | 502 Bad Gateway | `sudo systemctl status aae-backend` — check Flask is up; `sudo journalctl -u aae-backend -f` for logs |
 | MongoDB connection failed | Verify Atlas IP allowlist includes EC2 IP or `0.0.0.0/0` |

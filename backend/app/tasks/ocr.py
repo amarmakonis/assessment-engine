@@ -323,11 +323,17 @@ _QUESTION_MARKER_RE = re.compile(
 )
 
 
-def _recover_answers_from_unmapped(seg_result: dict, question_ids: list[str]) -> dict:
+def _recover_answers_from_unmapped(
+    seg_result: dict,
+    question_ids: list[str],
+    number_to_qid: dict[int, str] | None = None,
+) -> dict:
     """
     Post-process segmentation: assign substantial blocks in unmappedText to questions
     that currently have no answer when the block clearly follows a question-number marker.
     Reduces missed answers when the LLM leaves content in unmappedText.
+    number_to_qid: optional map from printed question number to questionId (e.g. {2: "q2", 3: "q2"}
+    for OR questions so that "3" in the script maps to q2).
     """
     unmapped = (seg_result.get("unmappedText") or "").strip()
     if not unmapped or len(unmapped) < 20:
@@ -353,7 +359,7 @@ def _recover_answers_from_unmapped(seg_result: dict, question_ids: list[str]) ->
             num = int(num_str)
         except ValueError:
             continue
-        qid = f"q{num}"
+        qid = (number_to_qid or {}).get(num) or f"q{num}"
         if qid not in by_q:
             continue
         entry = by_q[qid]
@@ -415,11 +421,20 @@ def segment_answers(
 
         max_q_chars = getattr(settings, "SEGMENTATION_MAX_QUESTION_TEXT_CHARS", 0) or 0
         questions = []
+        number_to_qid = {}
         for q in exam.get("questions", []):
+            qid = q.get("questionId")
             qtext = (q.get("questionText") or "").strip()
             if max_q_chars > 0 and len(qtext) > max_q_chars:
                 qtext = qtext[:max_q_chars] + "..."
-            questions.append({"questionId": q.get("questionId"), "questionText": qtext})
+            q_entry = {"questionId": qid, "questionText": qtext}
+            if q.get("questionNumber") is not None:
+                q_entry["questionNumber"] = q["questionNumber"]
+                number_to_qid[q["questionNumber"]] = qid
+            if q.get("questionNumberOr") is not None:
+                q_entry["questionNumberOr"] = q["questionNumberOr"]
+                number_to_qid[q["questionNumberOr"]] = qid
+            questions.append(q_entry)
         question_ids = [q.get("questionId", "") for q in exam.get("questions", []) if q.get("questionId")]
 
         seg_model = getattr(settings, "OPENAI_MODEL_SEGMENTATION", None)
@@ -435,7 +450,7 @@ def segment_answers(
         )
 
         seg_dict = result.model_dump(by_alias=True)
-        seg_dict = _recover_answers_from_unmapped(seg_dict, question_ids)
+        seg_dict = _recover_answers_from_unmapped(seg_dict, question_ids, number_to_qid)
 
         UploadedScriptRepository().update_one(uploaded_script_id, {
             "$set": {"uploadStatus": UploadStatus.SEGMENTED.value}

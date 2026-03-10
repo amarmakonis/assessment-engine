@@ -27,6 +27,7 @@ celery.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
+    broker_connection_retry_on_startup=True,
     task_default_queue="default",
     task_queues=(
         Queue("default", Exchange("default"), routing_key="default"),
