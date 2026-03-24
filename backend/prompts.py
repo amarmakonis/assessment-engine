@@ -224,13 +224,38 @@ def get_evaluation_prompt(question_text, student_answer, rubric_text, marks):
            - If the student wrote only the letter (e.g., "B") or only the text (e.g., "international law"), and it matches the correct option, award FULL MARKS.
            - Do not expect explanation or justification for MCQs.
            - Award 0 if the selection is incorrect.
-        7. Ensure the score is between **0 and {marks}**.
+        7. Overall "score" must be between **0 and {marks}** and must equal the sum of criteria[].marksAwarded.
 
-        Return JSON ONLY.
+        BREAKDOWN (required):
+        - Split the rubric into **2 to 5 criteria** (use IDs C1, C2, ...).
+        - Each criterion gets maxMarks that reflect its weight; **sum(maxMarks) must equal {marks}** (use decimals if needed).
+        - Allocate marksAwarded per criterion; **sum(marksAwarded) must equal score**.
+        - justificationQuote: a short verbatim snippet from the student answer (or empty if none).
+        - justificationReason: one sentence why that mark was given.
+        - confidenceScore: 0.0–1.0 for that criterion.
 
-        OUTPUT:
+        FEEDBACK OBJECT (required):
+        - strengths: 1–3 short bullet strings.
+        - improvements: 0–3 objects with criterionId (e.g. C1), gap (what was weak), suggestion (how to improve).
+        - encouragementNote: one short supportive line.
+
+        Return JSON ONLY with this shape:
         {{
           "score": number,
-          "feedback": "short explanation"
+          "feedback": "2-3 sentence summary for the student",
+          "criteria": [
+            {{
+              "criterionId": "C1",
+              "description": "What this criterion checks (from rubric)",
+              "maxMarks": number,
+              "marksAwarded": number,
+              "justificationQuote": "string or empty",
+              "justificationReason": "string",
+              "confidenceScore": number
+            }}
+          ],
+          "strengths": ["..."],
+          "improvements": [{{ "criterionId": "C1", "gap": "...", "suggestion": "..." }}],
+          "encouragementNote": "..."
         }}
     """

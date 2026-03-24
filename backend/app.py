@@ -484,6 +484,12 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
                 }
             )
 
+        fb_structured = item.get("feedbackStructured")
+        feedback_field = (
+            fb_structured
+            if isinstance(fb_structured, dict)
+            else item.get("feedback", "")
+        )
         result_items.append(
             {
                 "id": str(ObjectId()),
@@ -495,7 +501,9 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
                 "percentageScore": round((score / max_marks) * 100, 2) if max_marks else 0,
                 "reviewRecommendation": review_recommendation,
                 "status": "COMPLETE",
-                "feedback": item.get("feedback", ""),
+                "feedback": feedback_field,
+                "criterionScores": item.get("criterionScores") or [],
+                "groundedRubric": item.get("groundedRubric"),
                 "answer": item.get("answer", ""),
                 "questionText": item.get("question", ""),
                 "createdAt": _now(),
