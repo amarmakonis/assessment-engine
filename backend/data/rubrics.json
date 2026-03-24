@@ -1,0 +1,284 @@
+{
+  "rubrics": [
+    {
+      "id": "1_i",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "1_ii",
+      "rubric": "1. Completes sentence with a characteristic or description (2 marks)."
+    },
+    {
+      "id": "1_iii",
+      "rubric": "1. Provides evidence from the text (2 marks)."
+    },
+    {
+      "id": "1_iv",
+      "rubric": "1. Explains the statement (2 marks)."
+    },
+    {
+      "id": "1_v",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "1_vi",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "1_vii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "1_viii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "1_ix",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "2_i",
+      "rubric": "1. Infers the advantage (2 marks)."
+    },
+    {
+      "id": "2_ii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "2_iii",
+      "rubric": "1. Explains the use of electroreception (2 marks)."
+    },
+    {
+      "id": "2_iv",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "2_v",
+      "rubric": "1. Completes the sentence (1 mark)."
+    },
+    {
+      "id": "2_vi",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "2_vii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "2_viii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "3a",
+      "rubric": "1. Writes a notice (4 marks)."
+    },
+    {
+      "id": "3b",
+      "rubric": "1. Drafts a notice (4 marks)."
+    },
+    {
+      "id": "4a",
+      "rubric": "1. Creates an invitation card (4 marks)."
+    },
+    {
+      "id": "4b",
+      "rubric": "1. Writes a letter (4 marks)."
+    },
+    {
+      "id": "5a",
+      "rubric": "1. Writes a reply (6 marks)."
+    },
+    {
+      "id": "5b",
+      "rubric": "1. Writes a letter (6 marks)."
+    },
+    {
+      "id": "6a",
+      "rubric": "1. Writes an article (6 marks)."
+    },
+    {
+      "id": "6b",
+      "rubric": "1. Writes a report (6 marks)."
+    },
+    {
+      "id": "7a_i",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7a_ii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7a_iii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7a_iv",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7a_v",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7a_vi",
+      "rubric": "1. Completes the sentence (1 mark)."
+    },
+    {
+      "id": "7b_i",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7b_ii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7b_iii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7b_iv",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7b_v",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "7b_vi",
+      "rubric": "1. Completes the sentence (1 mark)."
+    },
+    {
+      "id": "8a_i",
+      "rubric": "1. Explains why the narrator resorts to wishful day-dreaming (1 mark)."
+    },
+    {
+      "id": "8a_ii",
+      "rubric": "1. Explains the importance of the year 1894 (1 mark)."
+    },
+    {
+      "id": "8a_iii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "8a_iv",
+      "rubric": "1. Gives a reason for the autobiographical writing style (1 mark)."
+    },
+    {
+      "id": "8b_i",
+      "rubric": "1. Completes the sentence (1 mark)."
+    },
+    {
+      "id": "8b_ii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "8b_iii",
+      "rubric": "1. Explains the moment (1 mark)."
+    },
+    {
+      "id": "8b_iv",
+      "rubric": "1. Infers the relationship (1 mark)."
+    },
+    {
+      "id": "9a_i",
+      "rubric": "1. Lists sensory details (1 mark)."
+    },
+    {
+      "id": "9a_ii",
+      "rubric": "1. Explains why the narrator is tempted (1 mark)."
+    },
+    {
+      "id": "9a_iii",
+      "rubric": "1. Completes the sentence (1 mark)."
+    },
+    {
+      "id": "9a_iv",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "9a_v",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "9a_vi",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "9b_i",
+      "rubric": "1. Identifies the phrase (1 mark)."
+    },
+    {
+      "id": "9b_ii",
+      "rubric": "1. Explains how the writer learns (1 mark)."
+    },
+    {
+      "id": "9b_iii",
+      "rubric": "1. Correct answer (1 mark)."
+    },
+    {
+      "id": "9b_iv",
+      "rubric": "1. Identifies emotions (1 mark)."
+    },
+    {
+      "id": "9b_v",
+      "rubric": "1. Explains why Douglas apes the other boys (1 mark)."
+    },
+    {
+      "id": "9b_vi",
+      "rubric": "1. Explains the autobiographical writing style (1 mark)."
+    },
+    {
+      "id": "10_i",
+      "rubric": "1. Explains the statement (2 marks)."
+    },
+    {
+      "id": "10_ii",
+      "rubric": "1. Explains why Gandhi said the statement (2 marks)."
+    },
+    {
+      "id": "10_iii",
+      "rubric": "1. Explains how Asokamitran solved the mystery (2 marks)."
+    },
+    {
+      "id": "10_iv",
+      "rubric": "1. Explains the concept of interstices and its utilization (2 marks)."
+    },
+    {
+      "id": "10_v",
+      "rubric": "1. Explains the line (2 marks)."
+    },
+    {
+      "id": "10_vi",
+      "rubric": "1. Explains the implication of the remark (2 marks)."
+    },
+    {
+      "id": "11_i",
+      "rubric": "1. Explains the two amazing things (2 marks)."
+    },
+    {
+      "id": "11_ii",
+      "rubric": "1. Explains Geoff Green's reasons (2 marks)."
+    },
+    {
+      "id": "11_iii",
+      "rubric": "1. Explains why Derry does not like being with people (2 marks)."
+    },
+    {
+      "id": "12a",
+      "rubric": "1. Writes a diary entry (5 marks)."
+    },
+    {
+      "id": "12b",
+      "rubric": "1. Writes a comparison of the theme of nature (5 marks)."
+    },
+    {
+      "id": "13a",
+      "rubric": "1. Discusses the topic (5 marks)."
+    },
+    {
+      "id": "13b",
+      "rubric": "1. Writes a diary entry (5 marks)."
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block page_action %}
+<a class="primary-action" href="{{ url_for('upload_answer_papers') }}">
+    <i data-lucide="plus"></i>
+    <span>Open Workflow</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="exam-card">
+    <div class="exam-card__left">
+        <div class="exam-icon">
+            <i data-lucide="clipboard-list"></i>
+        </div>
+        <div>
+            <h3 id="exam-title">{{ summary.title }}</h3>
+            <p id="exam-summary">
+                {% if summary.question_count %}
+                    {{ summary.subject or 'Current exam' }} - {{ summary.question_count }} questions - {{ summary.total_marks }} marks
+                {% else %}
+                    Upload a question paper to create the first exam.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="exam-card__actions">
+        <button class="icon-btn" id="refresh-status-btn" type="button" title="Refresh status">
+            <i data-lucide="refresh-cw"></i>
+        </button>
+    </div>
+</section>
+
+<section class="overview-grid">
+    <article class="overview-card">
+        <span class="overview-label">Question Paper</span>
+        <strong id="status-question" data-state="{{ 'ready' if summary.has_question_paper else 'pending' }}">{{ 'Ready' if summary.has_question_paper else 'Pending' }}</strong>
+        <p id="status-question-copy">
+            {% if summary.has_question_paper %}{{ summary.question_count }} questions extracted.{% else %}No file processed yet.{% endif %}
+        </p>
+    </article>
+    <article class="overview-card">
+        <span class="overview-label">Rubrics</span>
+        <strong id="status-rubrics" data-state="{{ 'ready' if summary.has_rubrics else 'pending' }}">{{ 'Ready' if summary.has_rubrics else 'Pending' }}</strong>
+        <p id="status-rubrics-copy">
+            {% if summary.has_rubrics %}{{ summary.rubric_count }} rubric items available.{% else %}Generate after extracting questions.{% endif %}
+        </p>
+    </article>
+    <article class="overview-card">
+        <span class="overview-label">Answer Script</span>
+        <strong id="status-answer" data-state="{{ 'ready' if summary.has_answer_script else 'pending' }}">{{ 'Ready' if summary.has_answer_script else 'Pending' }}</strong>
+        <p id="status-answer-copy">
+            {% if summary.has_answer_script %}{{ summary.mapped_answer_count }} mapped answers found.{% else %}Upload a script to map answers.{% endif %}
+        </p>
+    </article>
+</section>
+
+<section class="content-grid">
+    <article class="surface-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Paper</p>
+                <h3>Question Preview</h3>
+            </div>
+        </div>
+        {% if summary.question_segments %}
+        <div class="list-stack">
+            {% for question in summary.question_segments[:8] %}
+            <div class="list-row">
+                <span>Q{{ question.id }} · {{ question.section }}</span>
+                <strong>{{ question.marks }} mark{% if question.marks != '1' %}s{% endif %}</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted-copy">No question paper data is available yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="surface-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Coverage</p>
+                <h3>Review Snapshot</h3>
+            </div>
+        </div>
+        <div class="list-stack">
+            <div class="list-row">
+                <span>Missing Question IDs</span>
+                <strong>{{ summary.missing_question_ids|length }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Extra Answer Segments</span>
+                <strong>{{ summary.extra_answer_count }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Question Sections</span>
+                <strong>{{ summary.section_counts|length }}</strong>
+            </div>
+        </div>
+    </article>
+</section>
+{% endblock %}

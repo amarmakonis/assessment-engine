@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block page_action %}
+<a class="primary-action" href="{{ url_for('upload_answer_papers') }}">
+    <i data-lucide="clipboard-check"></i>
+    <span>Run Evaluation</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="stats-grid">
+    <article class="stat-card">
+        <span class="overview-label">Rubric Items</span>
+        <strong>{{ summary.rubric_count }}</strong>
+        <p>Available scoring rules from the saved rubric file.</p>
+    </article>
+    <article class="stat-card">
+        <span class="overview-label">Mapped Answers</span>
+        <strong>{{ summary.mapped_answer_count }}</strong>
+        <p>Answers ready for evaluation.</p>
+    </article>
+    <article class="stat-card">
+        <span class="overview-label">Missing Mappings</span>
+        <strong>{{ summary.missing_question_ids|length }}</strong>
+        <p>Questions that currently have no mapped answer.</p>
+    </article>
+</section>
+
+<section class="surface-card">
+    <div class="section-heading compact">
+        <div>
+            <p class="eyebrow">Rubrics</p>
+            <h3>Rubric Coverage</h3>
+        </div>
+    </div>
+    {% if summary.rubrics %}
+    <div class="record-list">
+        {% for item in summary.rubrics[:10] %}
+        <div class="record-card">
+            <div class="record-meta">Question {{ item.id }}</div>
+            <p>{{ item.rubric }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted-copy">No rubric data is available yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

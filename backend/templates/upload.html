@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block page_action %}
+<button class="primary-action" id="new-exam-btn" type="button">
+    <i data-lucide="upload"></i>
+    <span>Start Processing</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<section class="workflow-panel" id="workflow-panel">
+    <div id="error-container" class="alert alert-error hidden">
+        <i data-lucide="alert-circle"></i>
+        <span id="error-text"></span>
+    </div>
+
+    <div class="workflow-grid">
+        <article class="workflow-card">
+            <div class="workflow-card__head">
+                <span class="step-pill">Question Paper</span>
+                <h4>Extract Structure</h4>
+            </div>
+            <p class="workflow-copy">Upload a question paper PDF or image and convert it into structured JSON.</p>
+            <label class="upload-tile" for="qp-upload" id="qp-box">
+                <input type="file" id="qp-upload" hidden>
+                <i data-lucide="file-up"></i>
+                <strong>Select Question Paper</strong>
+                <span class="file-meta" id="qp-info">PDF or image</span>
+            </label>
+            <button id="extract-qp-btn" class="action-btn" type="button">
+                <i data-lucide="file-text" id="btn-icon-qp"></i>
+                <span id="btn-text-qp">Extract Question Paper</span>
+            </button>
+            <div class="result-block hidden" id="qp-result-container">
+                <div class="result-block__head">
+                    <strong>Structured Question JSON</strong>
+                    <button class="ghost-btn" type="button" onclick="downloadContent('qp-result-text', 'Question_Paper_Extraction.json')">Download</button>
+                </div>
+                <pre class="raw-content" id="qp-result-text">Pending...</pre>
+            </div>
+        </article>
+
+        <article class="workflow-card">
+            <div class="workflow-card__head">
+                <span class="step-pill">Rubrics</span>
+                <h4>Generate Rubrics</h4>
+            </div>
+            <p class="workflow-copy">Create rubric JSON directly from the saved question paper data.</p>
+            <button id="generate-rubrics-btn" class="action-btn" type="button" {% if not summary.has_question_paper %}disabled{% endif %}>
+                <i data-lucide="sparkles" id="btn-icon-rubrics"></i>
+                <span id="btn-text-rubrics">Generate Rubrics</span>
+            </button>
+            <div class="result-block hidden" id="rubrics-result-container">
+                <div class="result-block__head">
+                    <strong>Rubrics JSON</strong>
+                    <button class="ghost-btn" type="button" onclick="downloadContent('rubrics-result-text', 'Rubrics.json')">Download</button>
+                </div>
+                <pre class="raw-content" id="rubrics-result-text">{% if summary.rubrics %}{{ summary.rubrics | tojson(indent=2) }}{% else %}Pending...{% endif %}</pre>
+            </div>
+        </article>
+
+        <article class="workflow-card">
+            <div class="workflow-card__head">
+                <span class="step-pill">Answer Script</span>
+                <h4>Extract And Map</h4>
+            </div>
+            <p class="workflow-copy">Upload the answer script, segment it, and map extracted answers to question IDs.</p>
+            <label class="upload-tile" for="as-upload" id="as-box">
+                <input type="file" id="as-upload" hidden>
+                <i data-lucide="scroll-text"></i>
+                <strong>Select Answer Script</strong>
+                <span class="file-meta" id="as-info">Handwritten or typed</span>
+            </label>
+            <button id="extract-as-btn" class="action-btn" type="button" {% if not summary.has_question_paper %}disabled{% endif %}>
+                <i data-lucide="scan-text" id="btn-icon-as"></i>
+                <span id="btn-text-as">Extract And Map</span>
+            </button>
+            <div class="result-block hidden" id="as-result-container">
+                <div class="result-block__head">
+                    <strong>Segmented Answer JSON</strong>
+                    <button class="ghost-btn" type="button" onclick="downloadContent('as-result-text', 'Answer_Script_Extraction.json')">Download</button>
+                </div>
+                <pre class="raw-content" id="as-result-text">Pending...</pre>
+            </div>
+        </article>
+
+        <article class="workflow-card">
+            <div class="workflow-card__head">
+                <span class="step-pill">Evaluation</span>
+                <h4>Evaluate Answers</h4>
+            </div>
+            <p class="workflow-copy">Run final evaluation using the mapped answers and saved rubric set.</p>
+            <button id="evaluate-btn" class="action-btn" type="button" disabled>
+                <i data-lucide="graduation-cap" id="btn-icon-eval"></i>
+                <span id="btn-text-eval">Evaluate Answers</span>
+            </button>
+            <div class="status-note" id="evaluation-note">Evaluation becomes available after answer mapping completes.</div>
+        </article>
+    </div>
+</section>
+
+<section class="results-panel hidden" id="results-container">
+    <div class="section-heading compact">
+        <div>
+            <p class="eyebrow">Output</p>
+            <h3>Mapped Results</h3>
+        </div>
+    </div>
+    <div id="results-list" class="results-list"></div>
+</section>
+
+<section class="empty-panel hidden" id="empty-state">
+    <i data-lucide="inbox"></i>
+    <h3>No mapped results found</h3>
+    <p>The backend returned no answer mappings for the current script.</p>
+</section>
+{% endblock %}

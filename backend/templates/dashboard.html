@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block page_action %}
+<a class="primary-action" href="{{ url_for('upload_answer_papers') }}">
+    <i data-lucide="play"></i>
+    <span>Run Workflow</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="stats-grid">
+    <article class="stat-card">
+        <span class="overview-label">Questions</span>
+        <strong>{{ summary.question_count }}</strong>
+        <p>Extracted from the current question paper.</p>
+    </article>
+    <article class="stat-card">
+        <span class="overview-label">Mapped Answers</span>
+        <strong>{{ summary.mapped_answer_count }}</strong>
+        <p>Matched against extracted question IDs.</p>
+    </article>
+    <article class="stat-card">
+        <span class="overview-label">Rubrics</span>
+        <strong>{{ summary.rubric_count }}</strong>
+        <p>Available for evaluation.</p>
+    </article>
+    <article class="stat-card">
+        <span class="overview-label">Total Marks</span>
+        <strong>{{ summary.total_marks }}</strong>
+        <p>Calculated from the saved question paper data.</p>
+    </article>
+</section>
+
+<section class="content-grid">
+    <article class="surface-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Coverage</p>
+                <h3>Section Breakdown</h3>
+            </div>
+        </div>
+        {% if summary.section_counts %}
+        <div class="list-stack">
+            {% for section, count in summary.section_counts.items() %}
+            <div class="list-row">
+                <span>Section {{ section }}</span>
+                <strong>{{ count }} questions</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted-copy">No question paper has been extracted yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="surface-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Readiness</p>
+                <h3>Pipeline Status</h3>
+            </div>
+        </div>
+        <div class="list-stack">
+            <div class="list-row">
+                <span>Question Paper</span>
+                <strong>{{ 'Ready' if summary.has_question_paper else 'Pending' }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Answer Script</span>
+                <strong>{{ 'Ready' if summary.has_answer_script else 'Pending' }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Rubrics</span>
+                <strong>{{ 'Ready' if summary.has_rubrics else 'Pending' }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Review Queue</span>
+                <strong>{{ summary.missing_question_ids|length + summary.extra_answer_count }}</strong>
+            </div>
+        </div>
+    </article>
+</section>
+{% endblock %}

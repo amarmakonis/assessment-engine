@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block page_action %}
+<a class="primary-action" href="{{ url_for('upload_answer_papers') }}">
+    <i data-lucide="refresh-cw"></i>
+    <span>Go To Workflow</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="content-grid">
+    <article class="surface-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Regenerate</p>
+                <h3>Re-run Dependencies</h3>
+            </div>
+        </div>
+        <div class="list-stack">
+            <div class="list-row">
+                <span>Question data available</span>
+                <strong>{{ 'Yes' if summary.has_question_paper else 'No' }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Rubric data available</span>
+                <strong>{{ 'Yes' if summary.has_rubrics else 'No' }}</strong>
+            </div>
+            <div class="list-row">
+                <span>Answer script available</span>
+                <strong>{{ 'Yes' if summary.has_answer_script else 'No' }}</strong>
+            </div>
+        </div>
+        <p class="muted-copy top-gap">Use the upload workflow page to regenerate question extraction, rubrics, or answer mappings when the source files change.</p>
+    </article>
+
+    <article class="surface-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">Why Re-evaluate</p>
+                <h3>Recommended Triggers</h3>
+            </div>
+        </div>
+        <div class="list-stack">
+            <div class="list-row"><span>Question paper updated</span><strong>Re-extract and rebuild rubrics</strong></div>
+            <div class="list-row"><span>Answer script corrected</span><strong>Re-segment and re-map</strong></div>
+            <div class="list-row"><span>Rubric logic changed</span><strong>Regenerate rubric set</strong></div>
+        </div>
+    </article>
+</section>
+{% endblock %}

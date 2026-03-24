@@ -1,0 +1,11 @@
+flask
+flask-cors
+mistralai
+python-dotenv
+groq
+flask-jwt-extended
+bcrypt
+pymongo
+mongomock
+celery
+redis

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} | Assessment Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand-panel">
+                <div class="brand-icon">
+                    <i data-lucide="zap"></i>
+                </div>
+                <div>
+                    <h1>Assessment Engine</h1>
+                    <p>by Makonis.ai</p>
+                </div>
+            </div>
+
+            <nav class="nav-list">
+                {% for item in nav_items %}
+                <a class="nav-item{% if item.active %} active{% endif %}" href="{{ item.href }}">
+                    <i data-lucide="{{ item.icon }}"></i>
+                    <span>{{ item.label }}</span>
+                </a>
+                {% endfor %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="profile-card">
+                    <div class="avatar">A</div>
+                    <div>
+                        <strong>Amar</strong>
+                        <span>INSTITUTION_ADMIN</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <section class="page-top">
+                <div>
+                    <p class="eyebrow">Assessment Workspace</p>
+                    <h2>{{ page_title }}</h2>
+                    <p class="page-copy">{{ page_copy }}</p>
+                </div>
+                {% block page_action %}{% endblock %}
+            </section>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1328 @@
+{
+  "total_paper_marks": 80,
+  "sections": [
+    {
+      "section": "Section A",
+      "attempt": 13,
+      "total_options": 13,
+      "marks_per_question": 0,
+      "segments": [
+        {
+          "id": "1",
+          "text": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+          "marks": 0,
+          "sub_questions": [
+            {
+              "id": "1_i",
+              "text": "What is the significance of owning a dog for a young adult who is striving for acceptance in society?",
+              "marks": 1,
+              "options": [
+                "(A) It means increased physical activity.",
+                "(B) It builds a sense of responsibility.",
+                "(C) It helps young adults get more sleep.",
+                "(D) It is a source of unconditional love."
+              ]
+            },
+            {
+              "id": "1_ii",
+              "text": "A dog can encourage its owner to lead a healthier life by ___________. Complete the above sentence appropriately, in about 40 words, with a characteristic or description.",
+              "marks": 2
+            },
+            {
+              "id": "1_iii",
+              "text": "Share evidence from the text, in approximately 40 words, to support the view that dogs provide a sense of calm and comfort to those struggling with mental health issues.",
+              "marks": 2
+            },
+            {
+              "id": "1_iv",
+              "text": "Explain in about 40 words the statement that ‘dogs are great ice-breakers’.",
+              "marks": 2
+            },
+            {
+              "id": "1_v",
+              "text": "Which of the following activities help(s) young adults, owning a dog, build their sense of responsibility and self-discipline?",
+              "marks": 1,
+              "options": [
+                "(A) walking the dog daily",
+                "(B) feeding it regularly",
+                "(C) engaging the services of a dog trainer",
+                "(D) Both (A) and (B)"
+              ]
+            },
+            {
+              "id": "1_vi",
+              "text": "What does this article aim to do?",
+              "marks": 1,
+              "options": [
+                "(A) Explain the benefits of owning a dog.",
+                "(B) Provide advice on how to get a dog.",
+                "(C) Discuss how to take proper care of a dog.",
+                "(D) Describe the experiences of dog owners."
+              ]
+            },
+            {
+              "id": "1_vii",
+              "text": "Select the option that is similar in meaning to the phrase 'take on the world'.",
+              "marks": 1,
+              "options": [
+                "(A) travel the world",
+                "(B) accept a responsibility",
+                "(C) to be pessimistic",
+                "(D) have a global outlook"
+              ]
+            },
+            {
+              "id": "1_viii",
+              "text": "What does the underlined part in the sentence 'consider finding a furry friend to take on the world with you' refer to?",
+              "marks": 1
+            },
+            {
+              "id": "1_ix",
+              "text": "What is the tone of the article?",
+              "marks": 1,
+              "options": [
+                "(A) critical but supportive",
+                "(B) indifferent and bored",
+                "(C) positive and informative",
+                "(D) humorous and casual"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "text": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+          "marks": 0,
+          "sub_questions": [
+            {
+              "id": "2_i",
+              "text": "Infer the advantage that aquatic or amphibious species have over human beings. Answer in about 40 words.",
+              "marks": 2
+            },
+            {
+              "id": "2_ii",
+              "text": "A possible use for electroreception that will benefit humans is to :",
+              "marks": 1,
+              "options": [
+                "(A) use water as it is an efficient conductor of electricity.",
+                "(B) act on electrical stimuli.",
+                "(C) change electrical frequency to prevent it from being jammed.",
+                "(D) jam electrical frequencies."
+              ]
+            },
+            {
+              "id": "2_iii",
+              "text": "Explain in about 40 words the use of electroreception between the weakly electric fish.",
+              "marks": 2
+            },
+            {
+              "id": "2_iv",
+              "text": "Identify a young ray embryo from the following :",
+              "marks": 1,
+              "options": [
+                "(A) It fears electric signals.",
+                "(B) It keeps its tail in constant motion.",
+                "(C) It stations itself on land.",
+                "(D) It disorients sharks."
+              ]
+            },
+            {
+              "id": "2_v",
+              "text": "Complete the sentence appropriately. A shark hunts with accuracy because _______________.",
+              "marks": 1
+            },
+            {
+              "id": "2_vi",
+              "text": "Why does a shark recede its eyes when it attacks?",
+              "marks": 1
+            },
+            {
+              "id": "2_vii",
+              "text": "In areas where shark attacks on humans are likely to occur, scientists :",
+              "marks": 1,
+              "options": [
+                "(A) suggest putting barriers.",
+                "(B) are exploring ways to create artificial electroreceptors.",
+                "(C) suggest blinding them.",
+                "(D) are exploring ways to warn swimmers."
+              ]
+            },
+            {
+              "id": "2_viii",
+              "text": "State True or False. The title – ‘Understanding Electroreception and its Uses is Significant for Human Beings’ is appropriate for this passage.",
+              "marks": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Section B",
+      "attempt": 4,
+      "total_options": 4,
+      "marks_per_question": 0,
+      "segments": [
+        {
+          "id": "3",
+          "text": "Attempt any one of the two, (a) or (b), in about 50 words.",
+          "marks": 4,
+          "sub_questions": [
+            {
+              "id": "3a",
+              "text": "You are Geeta/Gautam, the Head girl/Head boy of Blossom Public School, Khushipur. Write a notice in about 50 words, informing the students of classes XI and XII about an inter-class debate competition to be held in the school in the first week of August. Invite applications for the same. Invent necessary details.",
+              "marks": 4
+            },
+            {
+              "id": "3b",
+              "text": "You are the Secretary of Richi Van Society, Joynagar. Draft a notice for the society notice board, informing residents about a blood donation camp to be held in the society. Invent necessary details.",
+              "marks": 4
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "text": "Attempt any one of the two, (a) or (b), in about 50 words.",
+          "marks": 4,
+          "sub_questions": [
+            {
+              "id": "4a",
+              "text": "You are the Student Head, Cultural Affairs at K.M Public School Roopshahar. Your school is organizing a two-week art and craft summer camp for the 10 – 14 year-olds. Create an invitation card, inviting renowned artist, Madhavan to inaugurate the exhibition-cum-sale of the products made during the camp. Invent necessary details.",
+              "marks": 4
+            },
+            {
+              "id": "4b",
+              "text": "You have received an invitation from Lucky Club, Shamnagar to be Chief Guest at a seminar on ‘Fundamental Rights of Children’. You are unable to attend the same. Write a letter stating your inability to attend and cite your reason for the same. Remember to wish them success for the event. You are Rohini/Rohit.",
+              "marks": 4
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "text": "Attempt any one of the two, (a) or (b), in 120 – 150 words.",
+          "marks": 6,
+          "sub_questions": [
+            {
+              "id": "5a",
+              "text": "You are a fresh postgraduate in mathematics from a reputed university. You saw the given advertisement in a newspaper and wish to apply for the position advertised. You are Sonali/Sohan. Write an appropriate reply, along with your bio-data, expressing your interest in the advertised post. Solace Public School requires TGT MATH. Qualifications: MA Math, B.Ed. Minimum 2 years experience. Job Profile: Taking remedial classes, mentoring students for competitive exams, teaching classes 6 – 10, organizing co-curricular activities. Salary: As per merit and school policy. Apply within a week to Principal, Solace Public School, 5 Mayaganj, Panipur.",
+              "marks": 6
+            },
+            {
+              "id": "5b",
+              "text": "The RWA of your colony organized a garbage disposal scheme at a nominal payment. Residents were requested to separate the garbage before placing it for pickup. However, the residents continue to remain indifferent. As a concerned resident, write a letter to the editor of your neighbourhood newsletter sharing your concern. You may use the given cues along with your ideas to compose the letter. You are Namita/Naman. Cues: garbage disposal — a civic responsibility, ensure cleanliness in surroundings, segregate garbage, make community compost pits, spread awareness of green practices, educate residents about the importance of separating recyclables, biodegradable waste and non-recyclables.",
+              "marks": 6
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "text": "Attempt any one of the two, (a) or (b), in 120 – 150 words.",
+          "marks": 6,
+          "sub_questions": [
+            {
+              "id": "6a",
+              "text": "Nowadays, most families travel during vacations. They forget that with pleasure comes responsibility. Write an article for a national daily on ‘Travel – A Civic Responsibility’. You are Bela/Bhushan. You may use the given cues with your own ideas to compose the article. Cues: choose destination with care, respect local culture and customs, shop and eat locally, minimize your waste, do ethical photography.",
+              "marks": 6
+            },
+            {
+              "id": "6b",
+              "text": "The mushrooming of fast-food outlets is creating a health hazard for the youth. School-going children are adopting unhealthy eating habits. Your school organized a 'Let's Eat Healthy Week.' As student editor of the school magazine, write a report on the event. You are Tripti/Tushar. You may use the following cues along with your own ideas to compose the report. Invent necessary details. Cues: workshop on healthy eating by a renowned nutritionist, poster making competition, growing microgreens workshop, healthy cooking – simple recipes, curating school canteen menu competition, one act plays on effects of fast food.",
+              "marks": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Section C",
+      "attempt": 9,
+      "total_options": 13,
+      "marks_per_question": 0,
+      "segments": [
+        {
+          "id": "7",
+          "text": "Read the following extracts and answer the questions for any one of the given two, (a) or (b):",
+          "marks": 6,
+          "sub_questions": [
+            {
+              "id": "7a",
+              "text": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+              "marks": 6,
+              "sub_parts": [
+                {
+                  "id": "7a_i",
+                  "text": "The phrase 'ashen like that of a corpse' gives the impression that the mother is",
+                  "marks": 1,
+                  "options": [
+                    "(A) frustrated",
+                    "(B) depressed",
+                    "(C) dead",
+                    "(D) weak"
+                  ]
+                },
+                {
+                  "id": "7a_ii",
+                  "text": "State whether the following statement is True or False with reference to the extract. 'The mother was suffering from some fatal disease.'",
+                  "marks": 1
+                },
+                {
+                  "id": "7a_iii",
+                  "text": "Which of the following themes is best represented in the given extract?",
+                  "marks": 1,
+                  "options": [
+                    "(A) Life is short and one must enjoy it",
+                    "(B) Ageing and Mortality",
+                    "(C) Sleeping and Playing",
+                    "(D) Art of Parenting"
+                  ]
+                },
+                {
+                  "id": "7a_iv",
+                  "text": "Pick the option in which the word 'spilling' is used in the same sense as in the extract.",
+                  "marks": 1,
+                  "options": [
+                    "(A) Rahul was responsible for spilling the beans by telling everyone the secret.",
+                    "(B) He opened the bag, spilling all its contents on the table.",
+                    "(C) Try to keep that crowd from spilling onto the main street.",
+                    "(D) The cat spilled all the milk."
+                  ]
+                },
+                {
+                  "id": "7a_v",
+                  "text": "The phrases 'Young Trees sprinting' and 'merry children spilling' represent:",
+                  "marks": 1,
+                  "options": [
+                    "(A) Youth",
+                    "(B) Old age",
+                    "(C) Disease",
+                    "(D) Travel"
+                  ]
+                },
+                {
+                  "id": "7a_vi",
+                  "text": "Complete the sentence appropriately. 'She was as old as she looked.' The repetition of the word 'as' suggests that __________.",
+                  "marks": 1
+                }
+              ]
+            },
+            {
+              "id": "7b",
+              "text": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+              "marks": 6,
+              "sub_parts": [
+                {
+                  "id": "7b_i",
+                  "text": "Which of the following themes is best represented in the given extract?",
+                  "marks": 1,
+                  "options": [
+                    "(A) Silence alleviates sadness of our life.",
+                    "(B) Life and death are part of our existence.",
+                    "(C) We must keep our lives moving.",
+                    "(D) Life is stressful and monotonous."
+                  ]
+                },
+                {
+                  "id": "7b_ii",
+                  "text": "State whether the following statement is True or False, with reference to the extract. The poet feels that quiet productivity in place of all activities is desirable.",
+                  "marks": 1
+                },
+                {
+                  "id": "7b_iii",
+                  "text": "The sadness being referred to (line 9) is due to :",
+                  "marks": 1,
+                  "options": [
+                    "(A) failure to understand ourselves.",
+                    "(B) failure to understand others.",
+                    "(C) loss of peers in life.",
+                    "(D) inability to achieve what we desire."
+                  ]
+                },
+                {
+                  "id": "7b_iv",
+                  "text": "The poem has been written from the point of view of a/an :",
+                  "marks": 1,
+                  "options": [
+                    "(A) environmentalist.",
+                    "(B) feminist.",
+                    "(C) social activist.",
+                    "(D) linguist."
+                  ]
+                },
+                {
+                  "id": "7b_v",
+                  "text": "Based on the rhyme scheme, which of the following does not rhyme with line 1?",
+                  "marks": 1,
+                  "options": [
+                    "(A) cruised",
+                    "(B) complaint",
+                    "(C) mused",
+                    "(D) bruised"
+                  ]
+                },
+                {
+                  "id": "7b_vi",
+                  "text": "Complete the sentence appropriately. In ‘Life is what it is about’, the poet is talking about ______.",
+                  "marks": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "text": "Read the following extracts and answer the questions for any one of the given two, (a) or (b):",
+          "marks": 4,
+          "sub_questions": [
+            {
+              "id": "8a",
+              "text": "To make sure, I walked over to a newsboy and glanced at the stack of papers at his feet. It was The World; and The World hasn't been published for years. The lead story said something about President Cleveland. I've found that front page since, in the Public Library files, and it was printed June 11, 1894. I turned toward the ticket window knowing that here — on the third level at Grand Central — I could buy tickets that would take Louisa and me anywhere in the United States we wanted to go. (The Third Level)",
+              "marks": 4,
+              "sub_parts": [
+                {
+                  "id": "8a_i",
+                  "text": "Why does the narrator resort to wishful day-dreaming and want to travel back in time?",
+                  "marks": 1
+                },
+                {
+                  "id": "8a_ii",
+                  "text": "The year 1894 holds so much importance because __________.",
+                  "marks": 1
+                },
+                {
+                  "id": "8a_iii",
+                  "text": "The World, the news about President Cleveland — what do they hint at?",
+                  "marks": 1,
+                  "options": [
+                    "(A) The narrator used to like reading the newspaper.",
+                    "(B) The narrator fantasises about past events.",
+                    "(C) The narrator wants to escape to a world that was unaffected by the two World Wars.",
+                    "(D) The narrator tends to forget things."
+                  ]
+                },
+                {
+                  "id": "8a_iv",
+                  "text": "Give one reason why the writing style of the extract can be called autobiographical.",
+                  "marks": 1
+                }
+              ]
+            },
+            {
+              "id": "8b",
+              "text": "But at this moment the door opened and she looked out, a dark-blue woollen haori over her kimono. ... He had met Hana in America, but he had waited to fall in love with her until he was sure she was Japanese. His father would never have received her unless she had been pure in her race. (The Enemy)",
+              "marks": 4,
+              "sub_parts": [
+                {
+                  "id": "8b_i",
+                  "text": "Complete the sentence appropriately. Hana was attired in __________.",
+                  "marks": 1
+                },
+                {
+                  "id": "8b_ii",
+                  "text": "With reference to the above, how will you describe Dr. Sadao as a son?",
+                  "marks": 1,
+                  "options": [
+                    "(A) indifferent",
+                    "(B) obedient",
+                    "(C) defiant",
+                    "(D) practical"
+                  ]
+                },
+                {
+                  "id": "8b_iii",
+                  "text": "What is 'this moment' all about?",
+                  "marks": 1,
+                  "options": [
+                    "(A) emotional turmoil.",
+                    "(B) tranquility.",
+                    "(C) agitation.",
+                    "(D) conflict."
+                  ]
+                },
+                {
+                  "id": "8b_iv",
+                  "text": "From the extract, what can you infer about Dr. Sadao and Hana's relationship?",
+                  "marks": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "text": "Read the following extracts and answer the questions for any one of the given two, (a) or (b):",
+          "marks": 6,
+          "sub_questions": [
+            {
+              "id": "9a",
+              "text": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+              "marks": 6,
+              "sub_parts": [
+                {
+                  "id": "9a_i",
+                  "text": "List two sensory details present in the extract.",
+                  "marks": 1
+                },
+                {
+                  "id": "9a_ii",
+                  "text": "Why is the narrator tempted to spend the day out of doors?",
+                  "marks": 1
+                },
+                {
+                  "id": "9a_iii",
+                  "text": "Complete the sentence appropriately. I hurried off to school resisting ___________.",
+                  "marks": 1
+                },
+                {
+                  "id": "9a_iv",
+                  "text": "Why does the narrator want to bunk school?",
+                  "marks": 1,
+                  "options": [
+                    "(A) He doesn't like the teachers.",
+                    "(B) He doesn't like his classmates.",
+                    "(C) He wasn't prepared for the test on participles.",
+                    "(D) He had forgotten to complete his homework."
+                  ]
+                },
+                {
+                  "id": "9a_v",
+                  "text": "Which trait of the protagonist is revealed in the sentence ‘I had the strength to resist’?",
+                  "marks": 1,
+                  "options": [
+                    "(A) sincerity",
+                    "(B) determination",
+                    "(C) bravery",
+                    "(D) kindness"
+                  ]
+                },
+                {
+                  "id": "9a_vi",
+                  "text": "Which of the following headlines best suggests the central idea of the extract?",
+                  "marks": 1,
+                  "options": [
+                    "(A) The Drilling of Prussian Soldiers",
+                    "(B) The Rule of Participles",
+                    "(C) Strength to Resist",
+                    "(D) Out of Doors"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "9b",
+              "text": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+              "marks": 6,
+              "sub_parts": [
+                {
+                  "id": "9b_i",
+                  "text": "Identify the phrase from the given extract that bears evidence to the fact that the narrator's association with 'childish fears' was not a recent one.",
+                  "marks": 1
+                },
+                {
+                  "id": "9b_ii",
+                  "text": "How does the writer try to learn it? Mention any two ways.",
+                  "marks": 1
+                },
+                {
+                  "id": "9b_iii",
+                  "text": "What did the Y.M.C.A. pool bring back to Douglas?",
+                  "marks": 1,
+                  "options": [
+                    "(A) Unpleasant memories",
+                    "(B) Memory of a boat",
+                    "(C) Meeting a bruiser of a boy",
+                    "(D) Memory of his visit to the Yakima River"
+                  ]
+                },
+                {
+                  "id": "9b_iv",
+                  "text": "The two emotions of Douglas mentioned in the given extract are ______ and ______.",
+                  "marks": 1
+                },
+                {
+                  "id": "9b_v",
+                  "text": "Why did Douglas ape the other boys?",
+                  "marks": 1
+                },
+                {
+                  "id": "9b_vi",
+                  "text": "The writing style of the extract is autobiographical because ______.",
+                  "marks": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "10",
+          "text": "Answer any five of the following six questions in 40 – 50 words each:",
+          "marks": 10,
+          "sub_questions": [
+            {
+              "id": "10_i",
+              "text": "In spite of the conditions prevailing in Seemapuri, children like Saheb and Mukesh are not devoid of hope. How far do you agree? (Lost Spring)",
+              "marks": 2
+            },
+            {
+              "id": "10_ii",
+              "text": "Why did Gandhi say: 'Freedom from fear is more important than legal justice for the poor'? (Indigo)",
+              "marks": 2
+            },
+            {
+              "id": "10_iii",
+              "text": "Stephen Spender’s visit to the Gemini Studios was viewed as an unexplained mystery by the Gemini family. How did Asokamitran solve this mystery years later? (Poets and Pancakes)",
+              "marks": 2
+            },
+            {
+              "id": "10_iv",
+              "text": "What do you understand by 'interstices'? How does Umberto Eco utilize his interstices? (The Interview)",
+              "marks": 2
+            },
+            {
+              "id": "10_v",
+              "text": "Explain how 'The tigers in the panel ... Will go on prancing, proud and unafraid.' (Aunt Jennifer’s Tigers)",
+              "marks": 2
+            },
+            {
+              "id": "10_vi",
+              "text": "‘Resignation was no sudden thing.’ What is the implication of this remark in the context of Sophie’s character? (Going Places)",
+              "marks": 2
+            }
+          ]
+        },
+        {
+          "id": "11",
+          "text": "Answer any two of the following three questions in 40 – 50 words each:",
+          "marks": 4,
+          "sub_questions": [
+            {
+              "id": "11_i",
+              "text": "What were the two ‘amazing’ things of the royal infant? (The Tiger King)",
+              "marks": 2
+            },
+            {
+              "id": "11_ii",
+              "text": "What are Geoff Green’s reasons for including high school students in the ‘Students on Ice’ expedition? (Journey to the End of the Earth)",
+              "marks": 2
+            },
+            {
+              "id": "11_iii",
+              "text": "Why does Derry not like being with people? (On The Face Of It)",
+              "marks": 2
+            }
+          ]
+        },
+        {
+          "id": "12",
+          "text": "Answer any one of the following two questions in 120 – 150 words:",
+          "marks": 5,
+          "sub_questions": [
+            {
+              "id": "12a",
+              "text": "How do imagery and symbolism in the poems 'Aunt Jennifer’s Tigers' and 'My Mother at Sixty-six' offer insights into relationships? Write a diary entry expressing your thoughts. You may begin this way: I read the two poems today and ...",
+              "marks": 5
+            },
+            {
+              "id": "12b",
+              "text": "Contrast the theme of nature in the poems 'A Thing of Beauty' and 'A Roadside Stand'. Write down your views by analysing the poems. You may begin this way: As I have analysed the two texts ... You may conclude: I’d like to say that ...",
+              "marks": 5
+            }
+          ]
+        },
+        {
+          "id": "13",
+          "text": "Answer any one of the following two questions in 120 – 150 words:",
+          "marks": 5,
+          "sub_questions": [
+            {
+              "id": "13a",
+              "text": "Physically impaired people have to suffer pain and a sense of alienation due to the behaviour of the people around them. It’s ironical that people who should be treated with empathy are either avoided or pitied. Discuss. (On The Face Of It)",
+              "marks": 5
+            },
+            {
+              "id": "13b",
+              "text": "In the two stories of Bama and Zitkala-Sa in the lesson of 'Memories of Childhood' there are certain similarities of strength in the face of social challenges. Write a diary entry sharing your observations.",
+              "marks": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "id": "1_i",
+      "section": "Section A",
+      "text": "What is the significance of owning a dog for a young adult who is striving for acceptance in society?",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 1,
+      "options": [
+        "(A) It means increased physical activity.",
+        "(B) It builds a sense of responsibility.",
+        "(C) It helps young adults get more sleep.",
+        "(D) It is a source of unconditional love."
+      ]
+    },
+    {
+      "id": "1_ii",
+      "section": "Section A",
+      "text": "A dog can encourage its owner to lead a healthier life by ___________. Complete the above sentence appropriately, in about 40 words, with a characteristic or description.",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "1_iii",
+      "section": "Section A",
+      "text": "Share evidence from the text, in approximately 40 words, to support the view that dogs provide a sense of calm and comfort to those struggling with mental health issues.",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "1_iv",
+      "section": "Section A",
+      "text": "Explain in about 40 words the statement that ‘dogs are great ice-breakers’.",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "1_v",
+      "section": "Section A",
+      "text": "Which of the following activities help(s) young adults, owning a dog, build their sense of responsibility and self-discipline?",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 1,
+      "options": [
+        "(A) walking the dog daily",
+        "(B) feeding it regularly",
+        "(C) engaging the services of a dog trainer",
+        "(D) Both (A) and (B)"
+      ]
+    },
+    {
+      "id": "1_vi",
+      "section": "Section A",
+      "text": "What does this article aim to do?",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 1,
+      "options": [
+        "(A) Explain the benefits of owning a dog.",
+        "(B) Provide advice on how to get a dog.",
+        "(C) Discuss how to take proper care of a dog.",
+        "(D) Describe the experiences of dog owners."
+      ]
+    },
+    {
+      "id": "1_vii",
+      "section": "Section A",
+      "text": "Select the option that is similar in meaning to the phrase 'take on the world'.",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 1,
+      "options": [
+        "(A) travel the world",
+        "(B) accept a responsibility",
+        "(C) to be pessimistic",
+        "(D) have a global outlook"
+      ]
+    },
+    {
+      "id": "1_viii",
+      "section": "Section A",
+      "text": "What does the underlined part in the sentence 'consider finding a furry friend to take on the world with you' refer to?",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "1_ix",
+      "section": "Section A",
+      "text": "What is the tone of the article?",
+      "context": "Read the following passage carefully : (1) As a young adult, life can be stressful and overwhelming at times. Juggling among school, work, social life, and other responsibilities, it can be easy to feel alone and disconnected from the world around us. Dogs are the ultimate companions for anyone looking to alleviate stress and loneliness. We'll explore many reasons why dogs make the best companions for young adults. (2) Unconditional love : Dogs are known for their loyalty and love for their owners, no matter what. They don't judge us, criticize us, or hold grudges against us. No matter how flawed or imperfect we may be, our dogs will always love us unconditionally. This kind of unwavering support and affection can be incredibly comforting for young adults struggling to find their place in the world. (3) Social connection : Dogs are great ice-breakers and conversation starters. Whether you're walking them in the park, taking them to the dog beach, or simply hanging out at home, dogs have a way of bringing people together. For young adults who may feel isolated or disconnected from their peers, having a dog by their side can be a great way to connect with others and form new friendships.",
+      "marks": 1,
+      "options": [
+        "(A) critical but supportive",
+        "(B) indifferent and bored",
+        "(C) positive and informative",
+        "(D) humorous and casual"
+      ]
+    },
+    {
+      "id": "2_i",
+      "section": "Section A",
+      "text": "Infer the advantage that aquatic or amphibious species have over human beings. Answer in about 40 words.",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "2_ii",
+      "section": "Section A",
+      "text": "A possible use for electroreception that will benefit humans is to :",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 1,
+      "options": [
+        "(A) use water as it is an efficient conductor of electricity.",
+        "(B) act on electrical stimuli.",
+        "(C) change electrical frequency to prevent it from being jammed.",
+        "(D) jam electrical frequencies."
+      ]
+    },
+    {
+      "id": "2_iii",
+      "section": "Section A",
+      "text": "Explain in about 40 words the use of electroreception between the weakly electric fish.",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "2_iv",
+      "section": "Section A",
+      "text": "Identify a young ray embryo from the following :",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 1,
+      "options": [
+        "(A) It fears electric signals.",
+        "(B) It keeps its tail in constant motion.",
+        "(C) It stations itself on land.",
+        "(D) It disorients sharks."
+      ]
+    },
+    {
+      "id": "2_v",
+      "section": "Section A",
+      "text": "Complete the sentence appropriately. A shark hunts with accuracy because _______________.",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "2_vi",
+      "section": "Section A",
+      "text": "Why does a shark recede its eyes when it attacks?",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "2_vii",
+      "section": "Section A",
+      "text": "In areas where shark attacks on humans are likely to occur, scientists :",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 1,
+      "options": [
+        "(A) suggest putting barriers.",
+        "(B) are exploring ways to create artificial electroreceptors.",
+        "(C) suggest blinding them.",
+        "(D) are exploring ways to warn swimmers."
+      ]
+    },
+    {
+      "id": "2_viii",
+      "section": "Section A",
+      "text": "State True or False. The title – ‘Understanding Electroreception and its Uses is Significant for Human Beings’ is appropriate for this passage.",
+      "context": "Read the following passage carefully : (1) Without specialised equipment, humans would be lost in these deep-sea habitats, so how do fish make it seem so easy? Much of this is due to a biological phenomenon known as electroreception — the ability to perceive and act upon electrical stimuli as part of the overall senses. This ability is only found in aquatic and amphibious species because water is an efficient conductor of electricity. (2) One fascinating use of electroreception has been observed between the weakly electric fish. When two such electric fish meet in the ocean using the same frequency, each fish will then shift the frequency of its discharge so that they are transmitting on different frequencies. Doing so prevents their electroreception faculties from becoming jammed. (3) Electroreception can also play an important role in animal defences. Rays are one such example. Young ray embryos develop inside egg cases that are attached to the sea bed. The embryos keep their tails in constant motion to pump water and allow them to breathe through the egg's casing. If the embryo's electroreceptors detect the presence of a predatory fish in the vicinity, however, the embryo stops moving (and in so doing, ceases transmitting electric currents) until the predator has moved on. (4) Many people fear swimming in the ocean because of sharks. Sharks hunt with extraordinary precision. They initially lock on to their prey through a keen sense of smell. As the shark reaches in proximity of its prey, it tunes into electrical signals that ensure a precise strike on its target; this sense is so strong that the shark even attacks blind by letting its eyes recede for protection. In areas where shark attacks on humans are likely to occur, scientists are exploring ways to create artificial electroreceptors. These would disorient the sharks and repel them from swimming beaches.",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "3a",
+      "section": "Section B",
+      "text": "You are Geeta/Gautam, the Head girl/Head boy of Blossom Public School, Khushipur. Write a notice in about 50 words, informing the students of classes XI and XII about an inter-class debate competition to be held in the school in the first week of August. Invite applications for the same. Invent necessary details.",
+      "context": "Attempt any one of the two, (a) or (b), in about 50 words.",
+      "marks": 4,
+      "options": null
+    },
+    {
+      "id": "3b",
+      "section": "Section B",
+      "text": "You are the Secretary of Richi Van Society, Joynagar. Draft a notice for the society notice board, informing residents about a blood donation camp to be held in the society. Invent necessary details.",
+      "context": "Attempt any one of the two, (a) or (b), in about 50 words.",
+      "marks": 4,
+      "options": null
+    },
+    {
+      "id": "4a",
+      "section": "Section B",
+      "text": "You are the Student Head, Cultural Affairs at K.M Public School Roopshahar. Your school is organizing a two-week art and craft summer camp for the 10 – 14 year-olds. Create an invitation card, inviting renowned artist, Madhavan to inaugurate the exhibition-cum-sale of the products made during the camp. Invent necessary details.",
+      "context": "Attempt any one of the two, (a) or (b), in about 50 words.",
+      "marks": 4,
+      "options": null
+    },
+    {
+      "id": "4b",
+      "section": "Section B",
+      "text": "You have received an invitation from Lucky Club, Shamnagar to be Chief Guest at a seminar on ‘Fundamental Rights of Children’. You are unable to attend the same. Write a letter stating your inability to attend and cite your reason for the same. Remember to wish them success for the event. You are Rohini/Rohit.",
+      "context": "Attempt any one of the two, (a) or (b), in about 50 words.",
+      "marks": 4,
+      "options": null
+    },
+    {
+      "id": "5a",
+      "section": "Section B",
+      "text": "You are a fresh postgraduate in mathematics from a reputed university. You saw the given advertisement in a newspaper and wish to apply for the position advertised. You are Sonali/Sohan. Write an appropriate reply, along with your bio-data, expressing your interest in the advertised post. Solace Public School requires TGT MATH. Qualifications: MA Math, B.Ed. Minimum 2 years experience. Job Profile: Taking remedial classes, mentoring students for competitive exams, teaching classes 6 – 10, organizing co-curricular activities. Salary: As per merit and school policy. Apply within a week to Principal, Solace Public School, 5 Mayaganj, Panipur.",
+      "context": "Attempt any one of the two, (a) or (b), in 120 – 150 words.",
+      "marks": 6,
+      "options": null
+    },
+    {
+      "id": "5b",
+      "section": "Section B",
+      "text": "The RWA of your colony organized a garbage disposal scheme at a nominal payment. Residents were requested to separate the garbage before placing it for pickup. However, the residents continue to remain indifferent. As a concerned resident, write a letter to the editor of your neighbourhood newsletter sharing your concern. You may use the given cues along with your ideas to compose the letter. You are Namita/Naman. Cues: garbage disposal — a civic responsibility, ensure cleanliness in surroundings, segregate garbage, make community compost pits, spread awareness of green practices, educate residents about the importance of separating recyclables, biodegradable waste and non-recyclables.",
+      "context": "Attempt any one of the two, (a) or (b), in 120 – 150 words.",
+      "marks": 6,
+      "options": null
+    },
+    {
+      "id": "6a",
+      "section": "Section B",
+      "text": "Nowadays, most families travel during vacations. They forget that with pleasure comes responsibility. Write an article for a national daily on ‘Travel – A Civic Responsibility’. You are Bela/Bhushan. You may use the given cues with your own ideas to compose the article. Cues: choose destination with care, respect local culture and customs, shop and eat locally, minimize your waste, do ethical photography.",
+      "context": "Attempt any one of the two, (a) or (b), in 120 – 150 words.",
+      "marks": 6,
+      "options": null
+    },
+    {
+      "id": "6b",
+      "section": "Section B",
+      "text": "The mushrooming of fast-food outlets is creating a health hazard for the youth. School-going children are adopting unhealthy eating habits. Your school organized a 'Let's Eat Healthy Week.' As student editor of the school magazine, write a report on the event. You are Tripti/Tushar. You may use the following cues along with your own ideas to compose the report. Invent necessary details. Cues: workshop on healthy eating by a renowned nutritionist, poster making competition, growing microgreens workshop, healthy cooking – simple recipes, curating school canteen menu competition, one act plays on effects of fast food.",
+      "context": "Attempt any one of the two, (a) or (b), in 120 – 150 words.",
+      "marks": 6,
+      "options": null
+    },
+    {
+      "id": "7a_i",
+      "section": "Section C",
+      "text": "The phrase 'ashen like that of a corpse' gives the impression that the mother is",
+      "context": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+      "marks": 1,
+      "options": [
+        "(A) frustrated",
+        "(B) depressed",
+        "(C) dead",
+        "(D) weak"
+      ]
+    },
+    {
+      "id": "7a_ii",
+      "section": "Section C",
+      "text": "State whether the following statement is True or False with reference to the extract. 'The mother was suffering from some fatal disease.'",
+      "context": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "7a_iii",
+      "section": "Section C",
+      "text": "Which of the following themes is best represented in the given extract?",
+      "context": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+      "marks": 1,
+      "options": [
+        "(A) Life is short and one must enjoy it",
+        "(B) Ageing and Mortality",
+        "(C) Sleeping and Playing",
+        "(D) Art of Parenting"
+      ]
+    },
+    {
+      "id": "7a_iv",
+      "section": "Section C",
+      "text": "Pick the option in which the word 'spilling' is used in the same sense as in the extract.",
+      "context": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+      "marks": 1,
+      "options": [
+        "(A) Rahul was responsible for spilling the beans by telling everyone the secret.",
+        "(B) He opened the bag, spilling all its contents on the table.",
+        "(C) Try to keep that crowd from spilling onto the main street.",
+        "(D) The cat spilled all the milk."
+      ]
+    },
+    {
+      "id": "7a_v",
+      "section": "Section C",
+      "text": "The phrases 'Young Trees sprinting' and 'merry children spilling' represent:",
+      "context": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+      "marks": 1,
+      "options": [
+        "(A) Youth",
+        "(B) Old age",
+        "(C) Disease",
+        "(D) Travel"
+      ]
+    },
+    {
+      "id": "7a_vi",
+      "section": "Section C",
+      "text": "Complete the sentence appropriately. 'She was as old as she looked.' The repetition of the word 'as' suggests that __________.",
+      "context": "I saw my mother, beside me, doze, open mouthed, her face ashen like that of a corpse and realized with pain that she was as old as she looked but soon put that thought away, and looked out at Young Trees sprinting, the merry children spilling out of their homes. (My Mother at Sixty-six)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "7b_i",
+      "section": "Section C",
+      "text": "Which of the following themes is best represented in the given extract?",
+      "context": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+      "marks": 1,
+      "options": [
+        "(A) Silence alleviates sadness of our life.",
+        "(B) Life and death are part of our existence.",
+        "(C) We must keep our lives moving.",
+        "(D) Life is stressful and monotonous."
+      ]
+    },
+    {
+      "id": "7b_ii",
+      "section": "Section C",
+      "text": "State whether the following statement is True or False, with reference to the extract. The poet feels that quiet productivity in place of all activities is desirable.",
+      "context": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "7b_iii",
+      "section": "Section C",
+      "text": "The sadness being referred to (line 9) is due to :",
+      "context": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+      "marks": 1,
+      "options": [
+        "(A) failure to understand ourselves.",
+        "(B) failure to understand others.",
+        "(C) loss of peers in life.",
+        "(D) inability to achieve what we desire."
+      ]
+    },
+    {
+      "id": "7b_iv",
+      "section": "Section C",
+      "text": "The poem has been written from the point of view of a/an :",
+      "context": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+      "marks": 1,
+      "options": [
+        "(A) environmentalist.",
+        "(B) feminist.",
+        "(C) social activist.",
+        "(D) linguist."
+      ]
+    },
+    {
+      "id": "7b_v",
+      "section": "Section C",
+      "text": "Based on the rhyme scheme, which of the following does not rhyme with line 1?",
+      "context": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+      "marks": 1,
+      "options": [
+        "(A) cruised",
+        "(B) complaint",
+        "(C) mused",
+        "(D) bruised"
+      ]
+    },
+    {
+      "id": "7b_vi",
+      "section": "Section C",
+      "text": "Complete the sentence appropriately. In ‘Life is what it is about’, the poet is talking about ______.",
+      "context": "What I want should not be confused with total inactivity. Life is what it is about; I want no truck with death. If we were not so single-minded about keeping our lives moving, and for once could do nothing, perhaps a huge silence might interrupt this sadness of never understanding ourselves and of threatening ourselves with death. (Keeping Quiet)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "8a_i",
+      "section": "Section C",
+      "text": "Why does the narrator resort to wishful day-dreaming and want to travel back in time?",
+      "context": "To make sure, I walked over to a newsboy and glanced at the stack of papers at his feet. It was The World; and The World hasn't been published for years. The lead story said something about President Cleveland. I've found that front page since, in the Public Library files, and it was printed June 11, 1894. I turned toward the ticket window knowing that here — on the third level at Grand Central — I could buy tickets that would take Louisa and me anywhere in the United States we wanted to go. (The Third Level)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "8a_ii",
+      "section": "Section C",
+      "text": "The year 1894 holds so much importance because __________.",
+      "context": "To make sure, I walked over to a newsboy and glanced at the stack of papers at his feet. It was The World; and The World hasn't been published for years. The lead story said something about President Cleveland. I've found that front page since, in the Public Library files, and it was printed June 11, 1894. I turned toward the ticket window knowing that here — on the third level at Grand Central — I could buy tickets that would take Louisa and me anywhere in the United States we wanted to go. (The Third Level)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "8a_iii",
+      "section": "Section C",
+      "text": "The World, the news about President Cleveland — what do they hint at?",
+      "context": "To make sure, I walked over to a newsboy and glanced at the stack of papers at his feet. It was The World; and The World hasn't been published for years. The lead story said something about President Cleveland. I've found that front page since, in the Public Library files, and it was printed June 11, 1894. I turned toward the ticket window knowing that here — on the third level at Grand Central — I could buy tickets that would take Louisa and me anywhere in the United States we wanted to go. (The Third Level)",
+      "marks": 1,
+      "options": [
+        "(A) The narrator used to like reading the newspaper.",
+        "(B) The narrator fantasises about past events.",
+        "(C) The narrator wants to escape to a world that was unaffected by the two World Wars.",
+        "(D) The narrator tends to forget things."
+      ]
+    },
+    {
+      "id": "8a_iv",
+      "section": "Section C",
+      "text": "Give one reason why the writing style of the extract can be called autobiographical.",
+      "context": "To make sure, I walked over to a newsboy and glanced at the stack of papers at his feet. It was The World; and The World hasn't been published for years. The lead story said something about President Cleveland. I've found that front page since, in the Public Library files, and it was printed June 11, 1894. I turned toward the ticket window knowing that here — on the third level at Grand Central — I could buy tickets that would take Louisa and me anywhere in the United States we wanted to go. (The Third Level)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "8b_i",
+      "section": "Section C",
+      "text": "Complete the sentence appropriately. Hana was attired in __________.",
+      "context": "But at this moment the door opened and she looked out, a dark-blue woollen haori over her kimono. ... He had met Hana in America, but he had waited to fall in love with her until he was sure she was Japanese. His father would never have received her unless she had been pure in her race. (The Enemy)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "8b_ii",
+      "section": "Section C",
+      "text": "With reference to the above, how will you describe Dr. Sadao as a son?",
+      "context": "But at this moment the door opened and she looked out, a dark-blue woollen haori over her kimono. ... He had met Hana in America, but he had waited to fall in love with her until he was sure she was Japanese. His father would never have received her unless she had been pure in her race. (The Enemy)",
+      "marks": 1,
+      "options": [
+        "(A) indifferent",
+        "(B) obedient",
+        "(C) defiant",
+        "(D) practical"
+      ]
+    },
+    {
+      "id": "8b_iii",
+      "section": "Section C",
+      "text": "What is 'this moment' all about?",
+      "context": "But at this moment the door opened and she looked out, a dark-blue woollen haori over her kimono. ... He had met Hana in America, but he had waited to fall in love with her until he was sure she was Japanese. His father would never have received her unless she had been pure in her race. (The Enemy)",
+      "marks": 1,
+      "options": [
+        "(A) emotional turmoil.",
+        "(B) tranquility.",
+        "(C) agitation.",
+        "(D) conflict."
+      ]
+    },
+    {
+      "id": "8b_iv",
+      "section": "Section C",
+      "text": "From the extract, what can you infer about Dr. Sadao and Hana's relationship?",
+      "context": "But at this moment the door opened and she looked out, a dark-blue woollen haori over her kimono. ... He had met Hana in America, but he had waited to fall in love with her until he was sure she was Japanese. His father would never have received her unless she had been pure in her race. (The Enemy)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9a_i",
+      "section": "Section C",
+      "text": "List two sensory details present in the extract.",
+      "context": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9a_ii",
+      "section": "Section C",
+      "text": "Why is the narrator tempted to spend the day out of doors?",
+      "context": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9a_iii",
+      "section": "Section C",
+      "text": "Complete the sentence appropriately. I hurried off to school resisting ___________.",
+      "context": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9a_iv",
+      "section": "Section C",
+      "text": "Why does the narrator want to bunk school?",
+      "context": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+      "marks": 1,
+      "options": [
+        "(A) He doesn't like the teachers.",
+        "(B) He doesn't like his classmates.",
+        "(C) He wasn't prepared for the test on participles.",
+        "(D) He had forgotten to complete his homework."
+      ]
+    },
+    {
+      "id": "9a_v",
+      "section": "Section C",
+      "text": "Which trait of the protagonist is revealed in the sentence ‘I had the strength to resist’?",
+      "context": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+      "marks": 1,
+      "options": [
+        "(A) sincerity",
+        "(B) determination",
+        "(C) bravery",
+        "(D) kindness"
+      ]
+    },
+    {
+      "id": "9a_vi",
+      "section": "Section C",
+      "text": "Which of the following headlines best suggests the central idea of the extract?",
+      "context": "For a moment I thought of running away and spending the day out of doors. It was so warm, so bright! The birds were chirping at the edge of the woods; and in the open field back of the sawmill the Prussian soldiers were drilling. It was all much more tempting than the rule for participles, but I had the strength to resist, and hurried off to school. (The Last Lesson)",
+      "marks": 1,
+      "options": [
+        "(A) The Drilling of Prussian Soldiers",
+        "(B) The Rule of Participles",
+        "(C) Strength to Resist",
+        "(D) Out of Doors"
+      ]
+    },
+    {
+      "id": "9b_i",
+      "section": "Section C",
+      "text": "Identify the phrase from the given extract that bears evidence to the fact that the narrator's association with 'childish fears' was not a recent one.",
+      "context": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9b_ii",
+      "section": "Section C",
+      "text": "How does the writer try to learn it? Mention any two ways.",
+      "context": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9b_iii",
+      "section": "Section C",
+      "text": "What did the Y.M.C.A. pool bring back to Douglas?",
+      "context": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+      "marks": 1,
+      "options": [
+        "(A) Unpleasant memories",
+        "(B) Memory of a boat",
+        "(C) Meeting a bruiser of a boy",
+        "(D) Memory of his visit to the Yakima River"
+      ]
+    },
+    {
+      "id": "9b_iv",
+      "section": "Section C",
+      "text": "The two emotions of Douglas mentioned in the given extract are ______ and ______.",
+      "context": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9b_v",
+      "section": "Section C",
+      "text": "Why did Douglas ape the other boys?",
+      "context": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "9b_vi",
+      "section": "Section C",
+      "text": "The writing style of the extract is autobiographical because ______.",
+      "context": "My introduction to the Y.M.C.A. swimming pool revived unpleasant memories and stirred childish fears. But in a little while I gathered confidence. I paddled with my new water wings, watching the other boys and trying to learn by aping them. I did this two or three times on different days. (Deep Water)",
+      "marks": 1,
+      "options": null
+    },
+    {
+      "id": "10_i",
+      "section": "Section C",
+      "text": "In spite of the conditions prevailing in Seemapuri, children like Saheb and Mukesh are not devoid of hope. How far do you agree? (Lost Spring)",
+      "context": "Answer any five of the following six questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "10_ii",
+      "section": "Section C",
+      "text": "Why did Gandhi say: 'Freedom from fear is more important than legal justice for the poor'? (Indigo)",
+      "context": "Answer any five of the following six questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "10_iii",
+      "section": "Section C",
+      "text": "Stephen Spender’s visit to the Gemini Studios was viewed as an unexplained mystery by the Gemini family. How did Asokamitran solve this mystery years later? (Poets and Pancakes)",
+      "context": "Answer any five of the following six questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "10_iv",
+      "section": "Section C",
+      "text": "What do you understand by 'interstices'? How does Umberto Eco utilize his interstices? (The Interview)",
+      "context": "Answer any five of the following six questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "10_v",
+      "section": "Section C",
+      "text": "Explain how 'The tigers in the panel ... Will go on prancing, proud and unafraid.' (Aunt Jennifer’s Tigers)",
+      "context": "Answer any five of the following six questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "10_vi",
+      "section": "Section C",
+      "text": "‘Resignation was no sudden thing.’ What is the implication of this remark in the context of Sophie’s character? (Going Places)",
+      "context": "Answer any five of the following six questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "11_i",
+      "section": "Section C",
+      "text": "What were the two ‘amazing’ things of the royal infant? (The Tiger King)",
+      "context": "Answer any two of the following three questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "11_ii",
+      "section": "Section C",
+      "text": "What are Geoff Green’s reasons for including high school students in the ‘Students on Ice’ expedition? (Journey to the End of the Earth)",
+      "context": "Answer any two of the following three questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "11_iii",
+      "section": "Section C",
+      "text": "Why does Derry not like being with people? (On The Face Of It)",
+      "context": "Answer any two of the following three questions in 40 – 50 words each:",
+      "marks": 2,
+      "options": null
+    },
+    {
+      "id": "12a",
+      "section": "Section C",
+      "text": "How do imagery and symbolism in the poems 'Aunt Jennifer’s Tigers' and 'My Mother at Sixty-six' offer insights into relationships? Write a diary entry expressing your thoughts. You may begin this way: I read the two poems today and ...",
+      "context": "Answer any one of the following two questions in 120 – 150 words:",
+      "marks": 5,
+      "options": null
+    },
+    {
+      "id": "12b",
+      "section": "Section C",
+      "text": "Contrast the theme of nature in the poems 'A Thing of Beauty' and 'A Roadside Stand'. Write down your views by analysing the poems. You may begin this way: As I have analysed the two texts ... You may conclude: I’d like to say that ...",
+      "context": "Answer any one of the following two questions in 120 – 150 words:",
+      "marks": 5,
+      "options": null
+    },
+    {
+      "id": "13a",
+      "section": "Section C",
+      "text": "Physically impaired people have to suffer pain and a sense of alienation due to the behaviour of the people around them. It’s ironical that people who should be treated with empathy are either avoided or pitied. Discuss. (On The Face Of It)",
+      "context": "Answer any one of the following two questions in 120 – 150 words:",
+      "marks": 5,
+      "options": null
+    },
+    {
+      "id": "13b",
+      "section": "Section C",
+      "text": "In the two stories of Bama and Zitkala-Sa in the lesson of 'Memories of Childhood' there are certain similarities of strength in the face of social challenges. Write a diary entry sharing your observations.",
+      "context": "Answer any one of the following two questions in 120 – 150 words:",
+      "marks": 5,
+      "options": null
+    }
+  ],
+  "paperTotalMarks": 80
+}

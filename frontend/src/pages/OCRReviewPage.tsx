@@ -1,0 +1,338 @@
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import {
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Copy,
+  Check,
+} from "lucide-react";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { OCRConfidenceMeter } from "@/components/dashboard/OCRConfidenceMeter";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ocrAPI, evaluationAPI } from "@/services/api";
+import type { OCRPage, ScriptAnswer } from "@/types";
+import toast from "react-hot-toast";
+import { clsx } from "clsx";
+import { FileSearch, CheckCircle2, AlertCircle } from "lucide-react";
+
+export function OCRReviewPage() {
+  const { scriptId } = useParams<{ scriptId: string }>();
+  const [pages, setPages] = useState<OCRPage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [signedUrl, setSignedUrl] = useState("");
+  const [hasStoredFile, setHasStoredFile] = useState(false);
+  const [reSegmenting, setReSegmenting] = useState(false);
+  const [reRunningOCR, setReRunningOCR] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [imgError, setImgError] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [mappedAnswers, setMappedAnswers] = useState<ScriptAnswer[]>([]);
+  const [loadingMapped, setLoadingMapped] = useState(false);
+
+  useEffect(() => {
+    if (!scriptId) return;
+    setLoading(true);
+    ocrAPI
+      .getPages(scriptId)
+      .then((pagesRes) => {
+        setPages(pagesRes.data.pages);
+        return ocrAPI.getSignedUrl(scriptId);
+      })
+      .then((urlRes) => {
+        setSignedUrl(urlRes.data.signedUrl);
+        setHasStoredFile(true);
+      })
+      .catch((err) => {
+        if (err?.response?.status !== 404) toast.error("Failed to load OCR data");
+        setSignedUrl("");
+        setHasStoredFile(false);
+      })
+      .finally(() => setLoading(false));
+
+    setLoadingMapped(true);
+    evaluationAPI
+      .getScript(scriptId)
+      .then((res) => {
+        setMappedAnswers(res.data.answers || []);
+      })
+      .catch(() => {
+        // Silently fail or log, as evaluation might not have started yet
+        console.log("No mapped answers found yet for this script");
+      })
+      .finally(() => setLoadingMapped(false));
+  }, [scriptId]);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [currentPage]);
+
+  async function handleReSegment() {
+    if (!scriptId) return;
+    setReSegmenting(true);
+    try {
+      await ocrAPI.reSegment(scriptId);
+      toast.success("Re-segmentation triggered — check scripts page for updates");
+    } catch {
+      toast.error("Failed to trigger re-segmentation");
+    } finally {
+      setReSegmenting(false);
+    }
+  }
+
+  async function handleReRunOCR() {
+    if (!scriptId) return;
+    setReRunningOCR(true);
+    try {
+      await ocrAPI.reRunOCR(scriptId);
+      toast.success("Re-run OCR started — check upload status; refresh this page when done");
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: { message?: string } } } };
+      const msg = ax.response?.data?.error?.message ?? "Failed to start re-run OCR";
+      toast.error(msg);
+    } finally {
+      setReRunningOCR(false);
+    }
+  }
+
+  function handleCopy() {
+    const text = pages[currentPage]?.extractedText ?? "";
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-accent-blue mb-4" />
+        <p className="text-text-secondary text-sm">Loading OCR results...</p>
+      </div>
+    );
+  }
+
+  const page = pages[currentPage];
+  const extractedText = page?.extractedText ?? "";
+
+  return (
+    <div className="space-y-4">
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", to: "/" },
+          { label: "Scripts", to: "/scripts" },
+          { label: "OCR Review" },
+        ]}
+      />
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="page-title">OCR Review</h2>
+          <p className="text-text-secondary text-base mt-1">
+            Review extracted text from the original document
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasStoredFile && (
+            <button
+              onClick={handleReRunOCR}
+              disabled={reRunningOCR}
+              className="btn-secondary flex items-center gap-2 text-sm"
+              title="Re-run OCR from stored file (e.g. after changing OCR settings)"
+            >
+              <RefreshCw className={clsx("w-4 h-4", reRunningOCR && "animate-spin")} />
+              Re-run OCR
+            </button>
+          )}
+          <button
+            onClick={handleReSegment}
+            disabled={reSegmenting}
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            <RefreshCw className={clsx("w-4 h-4", reSegmenting && "animate-spin")} />
+            Re-Segment
+          </button>
+        </div>
+      </div>
+
+      {page && (
+        <div className="flex items-center gap-5 bg-card border border-border rounded-xl shadow-card px-5 py-3">
+          <OCRConfidenceMeter confidence={page.confidenceScore} size={48} />
+          <div className="h-8 w-px bg-border" />
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Provider</p>
+            <p className="text-sm font-mono text-accent-blue font-medium">{page.provider}</p>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Processing</p>
+            <p className="text-sm font-mono text-text-primary">{page.processingMs}ms</p>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="flex gap-1.5">
+            {page.qualityFlags.map((f) => (
+              <StatusBadge key={f} status={f} />
+            ))}
+            {page.qualityFlags.length === 0 && (
+              <span className="badge-success">Good Quality</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ minHeight: "70vh" }}>
+        <GlassCard className="flex flex-col !p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-semibold text-sm text-text-primary">Original Document</h3>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
+                className="btn-secondary !px-1.5 !py-1"
+                title="Zoom out"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs text-text-muted font-mono w-10 text-center">
+                {(zoom * 100).toFixed(0)}%
+              </span>
+              <button
+                onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
+                className="btn-secondary !px-1.5 !py-1"
+                title="Zoom in"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setZoom(1)}
+                className="btn-secondary !px-1.5 !py-1"
+                title="Reset zoom"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-px h-5 bg-border mx-1" />
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                disabled={currentPage === 0}
+                className="btn-secondary !px-1.5 !py-1"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs text-text-secondary font-mono">
+                {currentPage + 1}/{pages.length}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(pages.length - 1, p + 1))}
+                disabled={currentPage === pages.length - 1}
+                className="btn-secondary !px-1.5 !py-1"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 bg-surface rounded-lg overflow-auto flex items-center justify-center">
+            {signedUrl && !imgError ? (
+              <img
+                src={signedUrl}
+                alt={`Page ${currentPage + 1}`}
+                className="max-w-full object-contain rounded transition-transform duration-200"
+                style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className="text-center text-text-muted py-12">
+                <p className="text-sm">
+                  {imgError ? "Failed to load image preview" : "No preview available"}
+                </p>
+                <p className="text-xs mt-1 text-text-muted">
+                  The extracted text is shown on the right
+                </p>
+              </div>
+            )}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="flex flex-col !p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-semibold text-sm text-text-primary">Extracted Text</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted font-mono">
+                {extractedText.length} chars
+              </span>
+              <button
+                onClick={handleCopy}
+                className="btn-secondary !px-2 !py-1 flex items-center gap-1.5 text-xs"
+                title="Copy text"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-accent-green" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 bg-surface border border-border rounded-lg p-4 overflow-auto">
+            <pre className="text-sm font-mono text-text-primary whitespace-pre-wrap leading-relaxed">
+              {extractedText || <span className="text-text-muted italic">No text extracted for this page.</span>}
+            </pre>
+          </div>
+        </GlassCard>
+      </div>
+
+      <GlassCard className="!p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-display font-bold text-text-primary flex items-center gap-2">
+              <FileSearch className="w-5 h-5 text-accent-blue" />
+              Mapped Answers
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              Questions identified and extracted from the full text below
+            </p>
+          </div>
+          {loadingMapped && <Loader2 className="w-5 h-5 animate-spin text-accent-blue" />}
+        </div>
+
+        {mappedAnswers.length === 0 ? (
+          <div className="py-8 text-center border-2 border-dashed border-border rounded-xl bg-surface/50">
+            <p className="text-sm text-text-muted italic">
+              {loadingMapped ? "Checking for mapped answers..." : "No answers have been mapped to questions yet. Mapping happens during the background evaluation process."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {mappedAnswers.map((ans) => {
+              const isFound = ans.text && ans.text.toLowerCase() !== "not found in student script";
+              return (
+                <div 
+                  key={ans.questionId}
+                  className={clsx(
+                    "p-4 rounded-xl border transition-all",
+                    isFound 
+                      ? "bg-emerald-50/50 border-emerald-100 hover:border-emerald-200" 
+                      : "bg-amber-50/50 border-amber-100 hover:border-amber-200"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">
+                      Q{ans.questionId.replace(/^q/i, "")}
+                    </span>
+                    {isFound ? (
+                      <CheckCircle2 className="w-4 h-4 text-accent-green" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-accent-gold" />
+                    )}
+                  </div>
+                  <p className="text-xs text-text-primary font-medium line-clamp-2 leading-relaxed">
+                    {isFound ? ans.text : <span className="text-text-muted italic">Not found</span>}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  );
+}
