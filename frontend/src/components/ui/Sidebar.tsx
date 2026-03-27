@@ -16,7 +16,6 @@ import {
   Layers,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { NotificationCenter } from './NotificationCenter';
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -116,7 +115,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   <p className="text-[11px] text-white/70 truncate">{user?.role}</p>
                 </div>
               </div>
-              <NotificationCenter />
             </div>
             <button
               onClick={logout}

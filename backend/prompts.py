@@ -1,261 +1,291 @@
+"""
+Universal Question Paper Prompts
+Handles: MCQ, Short Answer, Long Answer, Situational/Case Study,
+         OR logic, Any-N-of-M sections, bilingual papers, mixed papers.
+"""
+
 def get_question_structuring_prompt(text):
     return f"""
-        You are an exhaustive question extractor. Structure the following Question Paper into JSON.
-        
-        RULES:
-        1. ENGLISH ONLY: Strictly ignore/remove all Hindi or non-English characters.
-        2. SECTION DETECTION: Detect section headers and instructions (e.g., "Answer any six (12 marks)").
-           - Extract "section" name (e.g., "Q.1", "Section A").
-           - Extract "attempt" count from instructions (e.g., "Any 6" -> 6).
-           - Extract "total_options" (count of questions in that section).
-           - Calculate "marks_per_question" = (Total Section Marks / Attempt Count).
-        3. MARK CALCULATION:
-           - Case 1: "Answer any six (12 marks)" -> marks_per_question = 12 / 6 = 2.
-           - Case 2: "Write short notes any two (12 marks)" -> Marks per answer = 6.
-           - Case 3: "Answer any three (39 marks)" -> Marks per answer = 13.
-           - Case 4: "Answer in not more than two sentences (Any six) (12 marks)" -> marks_per_question = 2.
-        4. HIERARCHY & SUBPARTS:
-           - Preserve hierarchy: section -> question -> subquestion (e.g., 3a_i, 3a_ii).
-           - If a question has subparts (i, ii, etc.), split marks EQUALLY unless specified.
-           - Example: Total = 6 marks, i = 3, ii = 3.
-           - For Situational/Case Study Questions: Parent CASE is the question, subparts share marks equally.
-           - Repeat context text for subparts belonging to the same case study.
-        5. OR LOGIC: Maintain OR logic if present.
-           - Example: "Answer any two: a) b) c) d)" -> attempt = 2, options = 4.
-        6. NO HALLUCINATION: Extract marks ONLY from section rules or explicit mark indicators. Do not guess.
-        7. VERBATIM: Do not rephrase the question text.
-        8. PAPER TOTAL: Calculate and include the total marks for the entire paper.
-        
-        OUTPUT FORMAT:
+You are an expert question paper parser.
+
+Convert the given question paper into structured JSON.
+
+RULES:
+1. Extract ALL questions exactly as written (no rephrasing).
+2. Use section_id exactly as on the paper (e.g. Q1, Q2, Q3 — no trailing dot after Q unless printed).
+3. Extract instructions like:
+   - "Any 6"
+   - "All compulsory"
+4. Identify question types:
+   - mcq
+   - short_answer
+   - long_answer
+   - case_study
+5. For case_study / situational problems:
+   - Put the scenario in case_text on the PARENT question (type case_study).
+   - Each sub-question MUST have id, text, marks. Sub-question ids MUST be compound: if the parent case is id "1", use "1.a", "1.b"; if parent is "2", use "2.a", "2.b", "2.c". Never use bare "a" or "b" alone as id.
+6. For ordinary questions, use ids as printed (1, 2, 3 or 1.(a) style — normalize consistently).
+7. Extract options (MCQ), sub_questions, case_text as above.
+8. total_marks in metadata: use the number from the paper when stated; otherwise null.
+9. Do NOT guess marks if not explicitly given on the question or section.
+
+OUTPUT FORMAT (top-level keys ONLY "metadata" and "sections"; no other root keys):
+
+{{
+  "metadata": {{
+    "title": "",
+    "subject": "",
+    "duration": "",
+    "total_marks": null
+  }},
+  "sections": [
+    {{
+      "section_id": "Q1",
+      "instruction": "",
+      "attempt": null,
+      "questions": [
         {{
-          "total_paper_marks": 75,
-          "sections": [
-            {{
-              "section": "Q1",
-              "attempt": 6,
-              "total_options": 8,
-              "marks_per_question": 2,
-              "segments": [
-                {{ "id": "1", "text": "...", "marks": 2 }},
-                {{ "id": "3.(a).(i)", "text": "...", "marks": 3 }},
-                {{ "id": "3.(a).(ii)", "text": "...", "marks": 3 }}
-              ]
-            }}
-          ]
+          "id": "",
+          "text": "",
+          "type": "",
+          "marks": null,
+          "options": [],
+          "sub_questions": [],
+          "case_text": null
         }}
-        
-        NOTE ON IDs: Use standard numbers. Do NOT prefix with "Q" or "Question". For subparts, use format like "1.(a)" or "3.(i)".
-        
-        Question Paper Text:
-        ---
-        {text}
-        ---
-        """
+      ]
+    }}
+  ]
+}}
+
+Question Paper:
+{text}
+
+Return ONLY JSON.
+"""
+
 
 def get_answer_segmentation_prompt(text):
     return f"""
-        You are a verbatim text segmenter for STUDENT ANSWER SCRIPTS.
-        Identify and segment student answers by their ID (e.g., "1", "31.1", "28a", "29b").
-        
-        RULES:
-        1. ENGLISH ONLY: Ignore/remove Hindi text and administrative noise.
-        2. EXHAUSTIVE: Process all pages to the very end. DO NOT TRUNCATE.
-        3. VERBATIM: Copy student's answers exactly as written.
-        4. GRANULAR IDs & 'OR' CHOICES: Capture sub-question IDs or "OR" choices (e.g., "28a", "29b").
-        5. CLEAN TEXT: Remove the answer ID (like "28a.", "Ans 1", "or b)") from the start of the "text" field.
-        6. SECTIONS: Identify which Section (e.g., "A", "B", "C") the answer belongs to, if indicated.
-        7. FORMAT: Return a JSON OBJECT with a "segments" array.
-        
-        RAW OCR TEXT:
-        ---
-        {text}
-        ---
-        
-        OUTPUT JSON:
-        {{
-          "segments": [
-            {{ "id": "1", "section": "A", "text": "..." }},
-            {{ "id": "3.(a)", "section": "A", "text": "..." }}
-          ]
-        }}
-        
-        NOTE ON IDs: Use the SAME ID format as seen in the question (e.g., "1", "3.(a)", "28.(i)"). Strip redundant prefixes like "Ans" or "Q".
-        """
+You are a verbatim text segmenter for STUDENT ANSWER SCRIPTS.
+Identify and segment student answers by their question ID.
+
+RULES:
+1. ENGLISH ONLY: Ignore Hindi text and administrative noise.
+2. EXHAUSTIVE: Process ALL pages to the very end. DO NOT TRUNCATE.
+3. VERBATIM: Copy student answers exactly as written.
+4. GRANULAR IDs: Capture sub-question IDs (e.g. "1.(a)", "3.1.(b)", "Q.2").
+5. CLEAN TEXT: Remove the answer ID label (like "Ans 1", "Q.2.", "or b)") from the START of the text field.
+6. SECTION: Identify which section the answer belongs to if indicated.
+7. FLEXIBLE ID MATCHING: Normalise IDs — "1a" = "1.(a)", "Q3" = "3", etc.
+
+OUTPUT FORMAT:
+{{
+  "segments": [
+    {{ "id": "1", "section": "A", "text": "..." }},
+    {{ "id": "1.(a)", "section": "B", "text": "..." }}
+  ]
+}}
+
+RAW OCR TEXT:
+---
+{text}
+---
+
+Return ONLY valid JSON. No markdown fences.
+"""
+
 
 def get_pixtral_fallback_prompt():
     return "Extract all text verbatim. Focus on English and ignore non-English text."
 
-def get_extract_questions_prompt(text):
-    return f"""
-        You are an exhaustive question extractor. 
-        TASK: Extract EVERY SINGLE question from the provided paper.
-        
-        STRICT RULES:
-        1. ENGLISH ONLY: Strictly ignore/remove all Hindi or other non-English characters. If a question is bilingual, extract ONLY the English part.
-        2. EXHAUSTIVE: I expect approximately 34 questions. Do not skip any. Look for questions in all sections.
-        3. MARKS: Include the marks for each question at the end (e.g., "Why did... [2]").
-        4. IDs: Extract the question number/ID exactly as written (e.g., "1", "24.a", "34").
-        5. FORMAT: Return a JSON array of objects: [{{"id": "...", "question": "..."}}]
-        
-        Question Paper Text:
-        ---
-        {text}
-        ---
-        
-        OUTPUT JSON:
-    """
-
-def get_extract_answers_prompt(segmented_as_json, ids_str):
-    return f"""
-        Match student answers to these Specific Question IDs: {ids_str}.
-        
-        RULES:
-        1. Use the "Segmented Answer Script" (JSON) provided below.
-        2. Find the segment in the JSON that corresponds to each Paper ID.
-        3. Be extremely flexible with ID formats:
-           - "1.(a)" matches "1a", "1_a", "1.a", or "1(a)".
-           - "1_i" matches "1(i)", "1.i", "1 i", or "1".
-           - "Q.9" matches "9".
-        4. JUMBLED ORDER: The student may have answered in any order (e.g., Q9, then Q8, then Q2). Search the entire list of segments for each ID.
-        5. CONTENT MATCHING: If the ID is ambiguous, look at the segment text to see if it matches the question context/topic.
-        6. VERBATIM: Copy the student's text EXACTLY.
-        7. STIRCTLY ENGLISH ONLY.
-        8. If an answer is missing or cannot be found after exhaustive search, return "Not found in student script".
-        
-        Segmented Answer Script (JSON):
-        {segmented_as_json}
-        
-        Output JSON Format: [{{"id": "1", "answer": "..."}}, {{"id": "1.(a)", "answer": "..."}}]
-    """
 
 def get_rubrics_generation_prompt(qp_json_str):
     return f"""
-        You are an expert Rubrics Generation Agent. 
-        Your task is to create detailed evaluation rubrics based on the extracted Question Paper provided below.
+You are an expert Rubrics Generation Agent.
+Generate detailed evaluation rubrics for every question in the Question Paper JSON below.
+(The input may contain only longer / higher-mark items; short questions are handled separately.)
 
-        RULES:
-        1. Read the Question Paper JSON. For each question, generate a concise point-based rubric.
-        2. FOR MCQs / OBJECTIVE QUESTIONS:
-           - You MUST SOLVE the question yourself using the provided context/options.
-           - Explicitly state the CORRECT OPTION and its text in the rubric.
-           - Example Rubric: "Correct option is (B) 1947. Award 1 mark if correct, otherwise 0."
-        3. For Subjective Questions:
-           - If marks are provided, break the rubric into numbered marking points totaling that value.
-           - If marks are NOT provided, do NOT invent them.
-        4. Focus on key terms, concepts, or steps.
-        5. Never omit a rubric for any question id present in the input JSON.
-        
-        Question Paper JSON:
-        ---
-        {qp_json_str}
-        ---
-        
-        OUTPUT JSON FORMAT:
+RULES:
+1. Read each question. Generate a concise, point-based rubric matching the marks available.
+2. MCQ / OBJECTIVE:
+   - Solve the question using the options and context provided.
+   - State: "Correct option is (X) <option text>. Award N mark(s) if correct, otherwise 0."
+3. SHORT / LONG / ESSAY:
+   - Break into numbered marking points totalling the available marks.
+   - Focus on key terms, concepts, legal principles, case names.
+4. SITUATIONAL sub-questions: treat each sub-question as its own rubric entry.
+5. Never omit a rubric for any question id in the input.
+6. For OR questions: provide rubrics for BOTH alternatives.
+
+INPUT JSON:
+---
+{qp_json_str}
+---
+
+OUTPUT FORMAT:
+{{
+  "rubrics": [
+    {{
+      "id": "Q.1",
+      "rubric": "Correct option is (b) Resolution of disputes involving individuals across different legal jurisdictions. Award 1 mark if correct, otherwise 0.",
+      "criteria": [
         {{
-          "rubrics": [
-            {{ 
-              "id": "1_i", 
-              "rubric": "Correct option is (D) source of unconditional love. Award 1 mark if correct, otherwise 0."
-            }}
-          ]
+          "criterionId": "C1",
+          "description": "Correct option identified",
+          "maxMarks": 1
         }}
-    """
+      ]
+    }},
+    {{
+      "id": "3.1.(a)",
+      "rubric": "1 mark: State whether English court gives effect to French decree. 1 mark: Explain the public policy / comity rationale. 1 mark: Cite relevant principle or case.",
+      "criteria": [
+        {{
+          "criterionId": "C1",
+          "description": "States whether decree is recognized",
+          "maxMarks": 1
+        }},
+        {{
+          "criterionId": "C2",
+          "description": "Explains legal rationale",
+          "maxMarks": 1
+        }},
+        {{
+          "criterionId": "C3",
+          "description": "Mentions principle/case",
+          "maxMarks": 1
+        }}
+      ]
+    }}
+  ]
+}}
 
-# def get_evaluation_prompt(question_text, student_answer, rubric_text, marks):
-#     return f"""
-#         You are an Expert Grader.
-#         Evaluate the student's answer against the provided rubric and assign a score.
-        
-#         Question: {question_text}
-#         Maximum Marks: {marks}
-#         Rubric: {rubric_text}
-        
-#         Student's Answer:
-#         ---
-#         {student_answer}
-#         ---
-        
-#         RULES:
-#         1. Be objective and strictly follow the points in the rubric.
-#         2. Assign a numerical "score" between 0 and the Maximum Marks.
-#         3. Provide a brief 1-2 sentence "feedback" explaining why points were awarded or deducted.
-#         4. If the student's answer is "Not found in student script" or completely blank/irrelevant, the score is 0.
-#         5. FORMAT: Return a JSON object ONLY with "score" and "feedback" keys.
-        
-#         OUTPUT JSON FORMAT:
-#         {{
-#             "score": 1.5,
-#             "feedback": "The student correctly identified X, but missed the explanation for Y as required by the rubric."
-#         }}
-#     """
-
+Return ONLY valid JSON. No markdown fences.
+"""
 
 
-def get_evaluation_prompt(question_text, student_answer, rubric_text, marks):
+def get_evaluation_prompt(question_text, student_answer, rubric_text, marks, criteria_json=None):
+    criteria_block = criteria_json or "[]"
     return f"""
-        You are an expert exam evaluator grading handwritten student answers extracted using OCR.
+You are an expert exam evaluator grading handwritten student answers extracted using OCR.
 
-        QUESTION:
-        {question_text}
+QUESTION:
+{question_text}
 
-        MAXIMUM MARKS:
-        {marks}
+MAXIMUM MARKS:
+{marks}
 
-        RUBRIC:
-        {rubric_text}
+RUBRIC:
+{rubric_text}
 
-        STUDENT ANSWER (may contain OCR spelling mistakes):
-        ---
-        {student_answer}
-        ---
+REQUIRED CRITERIA (use exactly these criterionId values and maxMarks; do not invent new IDs):
+{criteria_block}
 
-        IMPORTANT RULES:
+STUDENT ANSWER (may contain OCR spelling mistakes):
+---
+{student_answer}
+---
 
-        1. The answer may contain OCR errors such as:
-           "inat law" instead of "international law",
-           "governu" instead of "governs".
+IMPORTANT RULES:
+1. OCR errors: "inat law" = "international law". Ignore spelling/grammar; evaluate conceptual correctness.
+2. Award partial marks whenever a relevant concept appears.
+3. Give 0 ONLY if the answer is completely missing or wholly irrelevant.
+4. MCQ / OBJECTIVE:
+   - If the student wrote the letter OR the text matching the correct option, award FULL marks.
+   - Do not require justification for MCQ.
+   - Award 0 if the selection is wrong.
+5. "score" must be between 0 and {marks} and must equal sum(criteria[].marksAwarded).
 
-        2. Ignore spelling mistakes and grammar errors.
-        3. Evaluate based on **conceptual correctness**.
-        4. Award **partial marks whenever a relevant concept appears**.
-        5. Only give 0 if the answer is completely missing or irrelevant.
-        6. FOR MCQ / OBJECTIVE QUESTIONS:
-           - Compare the student's selected option/answer against the CORRECT OPTION specified in the rubric.
-           - If the student wrote only the letter (e.g., "B") or only the text (e.g., "international law"), and it matches the correct option, award FULL MARKS.
-           - Do not expect explanation or justification for MCQs.
-           - Award 0 if the selection is incorrect.
-        7. Overall "score" must be between **0 and {marks}** and must equal the sum of criteria[].marksAwarded.
+BREAKDOWN (required — 2 to 5 criteria):
+- Use the REQUIRED CRITERIA list above as the source of truth whenever provided.
+- Keep criterionId and maxMarks aligned with REQUIRED CRITERIA.
+- If REQUIRED CRITERIA is empty, use IDs C1, C2, ... and ensure sum(maxMarks) = {marks}.
+- marksAwarded per criterion; sum(marksAwarded) = score.
+- justificationQuote: short verbatim snippet from the student answer (or empty).
+- justificationReason: one sentence.
+- confidenceScore: 0.0–1.0.
 
-        BREAKDOWN (required):
-        - Split the rubric into **2 to 5 criteria** (use IDs C1, C2, ...).
-        - Each criterion gets maxMarks that reflect its weight; **sum(maxMarks) must equal {marks}** (use decimals if needed).
-        - Allocate marksAwarded per criterion; **sum(marksAwarded) must equal score**.
-        - justificationQuote: a short verbatim snippet from the student answer (or empty if none).
-        - justificationReason: one sentence why that mark was given.
-        - confidenceScore: 0.0–1.0 for that criterion.
+Return JSON ONLY:
+{{
+  "score": <number>,
+  "feedback": "<2-3 sentence summary>",
+  "criteria": [
+    {{
+      "criterionId": "C1",
+      "description": "...",
+      "maxMarks": <number>,
+      "marksAwarded": <number>,
+      "justificationQuote": "...",
+      "justificationReason": "...",
+      "confidenceScore": <number>
+    }}
+  ],
+  "strengths": ["..."],
+  "improvements": [{{"criterionId": "C1", "gap": "...", "suggestion": "..."}}],
+  "encouragementNote": "..."
+}}
+"""
 
-        FEEDBACK OBJECT (required):
-        - strengths: 1–3 short bullet strings.
-        - improvements: 0–3 objects with criterionId (e.g. C1), gap (what was weak), suggestion (how to improve).
-        - encouragementNote: one short supportive line.
 
-        Return JSON ONLY with this shape:
-        {{
-          "score": number,
-          "feedback": "2-3 sentence summary for the student",
-          "criteria": [
-            {{
-              "criterionId": "C1",
-              "description": "What this criterion checks (from rubric)",
-              "maxMarks": number,
-              "marksAwarded": number,
-              "justificationQuote": "string or empty",
-              "justificationReason": "string",
-              "confidenceScore": number
-            }}
-          ],
-          "strengths": ["..."],
-          "improvements": [{{ "criterionId": "C1", "gap": "...", "suggestion": "..." }}],
-          "encouragementNote": "..."
-        }}
-    """
+def get_rubric_criteria_prompt(question_text, rubric_text, marks):
+    return f"""
+You are preparing grading criteria during exam setup.
+
+QUESTION:
+{question_text}
+
+MAXIMUM MARKS:
+{marks}
+
+RUBRIC:
+{rubric_text}
+
+Create a criterion template in the SAME structure used during evaluation.
+
+RULES:
+1. Return 2 to 5 criteria.
+2. Criterion IDs must be C1, C2, C3... in order.
+3. Each criterion must have:
+   - criterionId
+   - description
+   - maxMarks
+4. Sum of maxMarks must equal {marks}.
+5. Keep descriptions concise and rubric-aligned.
+6. Return only JSON.
+
+OUTPUT:
+{{
+  "criteria": [
+    {{
+      "criterionId": "C1",
+      "description": "....",
+      "maxMarks": 0
+    }}
+  ]
+}}
+"""
+
+
+def get_extract_answers_prompt(segmented_as_json, ids_str):
+    return f"""
+Match student answers to these Question IDs: {ids_str}.
+
+RULES:
+1. Use the segmented answer JSON below.
+2. Be extremely flexible with ID formats:
+   - Full exam IDs may include section, e.g. "Q1.1", "Q2.3", "Q3.1.a" — align these with how the student labelled answers.
+   - "1.(a)" matches "1a", "1_a", "1.a", "1(a)"
+   - "Q.1" / "Q1" matches section-wide numbering
+3. JUMBLED ORDER: search the ENTIRE segment list for each ID.
+4. CONTENT MATCHING: if ID is ambiguous, use the question context to match.
+5. VERBATIM: copy student text exactly.
+6. ENGLISH ONLY.
+7. If not found after exhaustive search → "Not found in student script".
+
+Segmented Answer Script (JSON):
+{segmented_as_json}
+
+Output JSON: [{{"id": "1", "answer": "..."}}, ...]
+Return ONLY valid JSON.
+"""

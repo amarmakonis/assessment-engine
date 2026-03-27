@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+from collections import defaultdict
 import os
 import re
 import threading
@@ -23,9 +24,14 @@ from flask_jwt_extended import (
 from mistralai.client import Mistral
 
 from agents.evaluator import evaluate_mapped_results
-from agents.extractor import extract_question_paper
+from agents.extractor import (
+    extract_question_paper,
+    expand_question_paper_for_pipeline,
+    trim_question_paper_to_minimal,
+)
+from agents.processor import extract_attempt, extract_section_marks
 from agents.mapper import map_answers
-from agents.rubrics import generate_rubrics_from_json
+from agents.rubrics import generate_rubrics_from_json, generate_criteria_for_question
 from agents.segmenter import segment_answer_script
 from agents.batch_manager import BatchManager
 from tasks import process_exam_task, process_script_task, process_batch_task
@@ -156,31 +162,497 @@ def _extract_bytes_to_json(file_content, mime_type, filename, doc_type):
 
 def _question_to_frontend(question, rubric_lookup):
     question_id = str(question.get("id", "")).strip()
+    ordered_id = str(question.get("orderedId") or "").strip()
+    source_id = str(question.get("sourceId") or "").strip()
+    display_id = (
+        ordered_id.split(".", 1)[0]
+        if ordered_id and "." in ordered_id
+        else (source_id or question_id)
+    )
     rubric_text = rubric_lookup.get(question_id, "")
     inferred_marks = _infer_question_max_marks(question, rubric_lookup)
     rubric_items = [{
         "description": rubric_text or f"Evaluate answer for question {question_id}",
         "maxMarks": inferred_marks,
     }]
-    return {
+    out = {
         "questionId": question_id,
-        "questionLabel": question.get("id"),
+        "questionDisplayId": display_id,
+        "questionLabel": source_id or question.get("id"),
         "questionText": question.get("text") or question.get("question") or "",
         "context": question.get("context"),
+        "sourceId": source_id or None,
         "maxMarks": inferred_marks,
-        "section": question.get("section"),
         "rubric": rubric_items,
     }
+    if ordered_id:
+        out["orderedId"] = ordered_id
+    return out
 
 
 def _normalize_id(id_str):
     if not id_str:
         return ""
-    # Remove Q, Question, Ans, Answer prefixes, dots, spaces, parens
+    # Align with agents.mapper._normalize_id: keep dots so Q1.1 → 1.1 (not 11).
     s = str(id_str).lower().strip()
     s = re.sub(r"^(q|question|ans|answer)\s*[.\-:]*", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"[.\s()\-]", "", s)
-    return s
+    s = s.replace("(", ".").replace(")", "")
+    s = re.sub(r"\s+", "", s)
+    s = re.sub(r"\.{2,}", ".", s)
+    return s.strip(".")
+
+
+def _effective_question_paper_json(exam):
+    """
+    Minimal stored papers have only id/text/marks/section per segment.
+    Expand in-memory so mainQuestionId and rubric mapping still work.
+    """
+    qp = (exam or {}).get("questionPaperJson") if isinstance(exam, dict) else None
+    if not isinstance(qp, dict):
+        return {}
+    segs = qp.get("segments") or []
+    first = segs[0] if segs else None
+    if (
+        segs
+        and isinstance(first, dict)
+        and "mainQuestionId" not in first
+    ):
+        extra = expand_question_paper_for_pipeline(qp, None, None)
+        return {**qp, **extra}
+    return qp
+
+
+def _question_main_group_id(exam, question_id):
+    """Resolve main block id from questionPaperJson segments (no section on exam questions)."""
+    qid = str(question_id or "").strip()
+    if not qid:
+        return ""
+    payload = _effective_question_paper_json(exam) or {}
+    segments = payload.get("segments") if isinstance(payload, dict) else []
+    if not isinstance(segments, list):
+        return ""
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        for key in ("id", "sourceId"):
+            v = str(seg.get(key) or "").strip()
+            if v == qid:
+                return str(seg.get("mainQuestionId") or "").strip()
+    return ""
+
+
+def _question_section_id(exam, question_id):
+    """Resolve section label for a question from stored segments."""
+    qid = str(question_id or "").strip()
+    if not qid:
+        return ""
+    qn = _normalize_id(qid)
+    payload = _effective_question_paper_json(exam) or {}
+    segments = payload.get("segments") if isinstance(payload, dict) else []
+    if not isinstance(segments, list):
+        return ""
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        for key in ("id", "sourceId", "questionId"):
+            v = str(seg.get(key) or "").strip()
+            if v and _normalize_id(v) == qn:
+                return str(seg.get("section") or "").strip()
+    return ""
+
+
+def _section_key(value):
+    s = str(value or "").strip().upper()
+    if not s:
+        return ""
+    m = re.search(r"(?:SECTION\s*)?([A-Z])$", s)
+    return m.group(1) if m else s
+
+
+def _infer_global_section_policy(exam, unit_marks_by_section):
+    """
+    Detect papers like:
+      - Section A compulsory
+      - one each from B/C/D
+      - one extra from any of B/C/D
+    Returns policy dict or None when not confident.
+    """
+    qp = _effective_question_paper_json(exam) or {}
+    structured = qp.get("structured") if isinstance(qp, dict) else {}
+    sections = structured.get("sections") if isinstance(structured, dict) else []
+    if not isinstance(sections, list) or not sections:
+        return None
+
+    compulsory = []
+    optional = []
+    section_option_marks = {}
+
+    def _question_option_marks(q):
+        if not isinstance(q, dict):
+            return 0.0
+        subs = q.get("sub_questions")
+        if isinstance(subs, list) and subs:
+            total = sum(_to_number(sq.get("marks")) for sq in subs if isinstance(sq, dict))
+            return float(total) if total > 0 else _to_number(q.get("marks"))
+        return _to_number(q.get("marks"))
+
+    for sec in sections:
+        if not isinstance(sec, dict):
+            continue
+        sid = _section_key(sec.get("section_id") or sec.get("section"))
+        instr = str(sec.get("instruction") or "").lower()
+        if not sid:
+            continue
+        if ("compulsory" in instr) or ("attempt all" in instr) or ("all questions" in instr):
+            compulsory.append(sid)
+        else:
+            optional.append(sid)
+        q_marks = [_question_option_marks(q) for q in (sec.get("questions") or [])]
+        q_marks = [m for m in q_marks if m > 0]
+        if q_marks:
+            q_marks_sorted = sorted(q_marks)
+            section_option_marks[sid] = q_marks_sorted[len(q_marks_sorted) // 2]
+
+    if len(compulsory) != 1 or len(optional) < 3:
+        return None
+
+    exam_total = _resolve_total_marks(exam, exam.get("questions", []))
+    if _to_number(exam_total) <= 0:
+        return None
+
+    comp_id = compulsory[0]
+    comp_marks = section_option_marks.get(comp_id, 0.0)
+    if comp_marks <= 0:
+        return None
+
+    # Infer one-pick mark from optional sections based on paper structure (not student score).
+    opt_base_marks = []
+    for sid in optional:
+        m = section_option_marks.get(sid, 0.0)
+        if m <= 0:
+            return None
+        opt_base_marks.append(m)
+    if not opt_base_marks:
+        return None
+    base = sorted(opt_base_marks)[len(opt_base_marks) // 2]
+    if base <= 0:
+        return None
+
+    # Infer how many extra picks are needed from optional pool to match total marks.
+    raw_extra = (_to_number(exam_total) - comp_marks) / base - len(optional)
+    extra_pick = int(round(raw_extra))
+    if extra_pick < 0 or extra_pick > 3:
+        return None
+    expected = comp_marks + (len(optional) + extra_pick) * base
+    if abs(expected - _to_number(exam_total)) > 2.0:
+        return None
+
+    return {
+        "compulsory": comp_id,
+        "optionals": optional,
+        "extra_pick_from_optionals": extra_pick,
+        "reason": (
+            "Detected compulsory + one-each-from-optionals + "
+            f"{extra_pick} extra optional pick(s) pattern"
+        ),
+    }
+
+
+def _build_main_question_groups_list(main_questions):
+    """One entry per main block; attempt/marks caps keyed by id (matches segment mainQuestionId)."""
+    out = []
+    for mq in main_questions or []:
+        if not isinstance(mq, dict):
+            continue
+        out.append(
+            {
+                "id": str(mq.get("id", "")).strip(),
+                "mainQuestionAttemptLimit": mq.get("sectionAttemptLimit"),
+                "mainQuestionTotalOptions": mq.get("sectionTotalOptions"),
+                "mainQuestionMarksConsidered": mq.get("mainQuestionMarksConsidered"),
+                "sectionMarksPerQuestion": mq.get("sectionMarksPerQuestion"),
+            }
+        )
+    return out
+
+
+def _sum_exam_marks_from_groups(exam, questions):
+    """Sum exam total using one cap per main group id from mainQuestionGroups."""
+    groups = (exam or {}).get("mainQuestionGroups") if isinstance(exam, dict) else None
+    if not groups or not questions:
+        return _sum_question_marks(questions or [])
+
+    qp = (exam or {}).get("questionPaperJson") or {}
+    segs = qp.get("segments") if isinstance(qp, dict) else None
+    if not segs:
+        return _sum_question_marks(questions)
+
+    policy_ids = {}
+    for g in groups:
+        if not isinstance(g, dict):
+            continue
+        gid = str(g.get("id", "")).strip()
+        if gid:
+            policy_ids[gid] = g
+
+    if not policy_ids:
+        return _sum_question_marks(questions)
+
+    total = 0.0
+    covered = set()
+    for gid, g in policy_ids.items():
+        if gid in covered:
+            continue
+        covered.add(gid)
+        cap = _to_number(g.get("mainQuestionMarksConsidered") or 0)
+        if cap <= 0:
+            att_i = _attempt_limit_as_int(
+                g.get("mainQuestionAttemptLimit"),
+                g.get("mainQuestionTotalOptions"),
+            )
+            mx = next(
+                (
+                    _to_number(q.get("maxMarks"))
+                    for q in questions
+                    if _question_main_group_id(exam, q.get("questionId")) == gid
+                ),
+                0,
+            )
+            if att_i > 0 and mx > 0:
+                cap = att_i * mx
+        if cap > 0:
+            total += cap
+        else:
+            total += sum(
+                _to_number(q.get("maxMarks"))
+                for q in questions
+                if _question_main_group_id(exam, q.get("questionId")) == gid
+            )
+
+    grouped_ids = set(policy_ids.keys())
+    for q in questions:
+        mg = _question_main_group_id(exam, q.get("questionId"))
+        if mg and mg in grouped_ids:
+            continue
+        if not mg and grouped_ids:
+            continue
+        total += _to_number(q.get("maxMarks"))
+
+    return round(total, 2)
+
+
+def _attempt_limit_as_int(raw_limit, total_options=None):
+    """Parse numeric/textual attempt limits (e.g. 'One question...', 'All compulsory')."""
+    if raw_limit is None:
+        return 0
+    if isinstance(raw_limit, (int, float)):
+        try:
+            n = int(raw_limit)
+            return n if n > 0 else 0
+        except (TypeError, ValueError):
+            return 0
+
+    text = str(raw_limit).strip().lower()
+    if not text:
+        return 0
+
+    if text.isdigit():
+        n = int(text)
+        return n if n > 0 else 0
+
+    if "all compulsory" in text or "attempt all" in text or "all questions" in text:
+        return int(_to_number(total_options)) if _to_number(total_options) > 0 else 0
+
+    word_to_num = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+    }
+    for word, number in word_to_num.items():
+        if re.search(rf"\b{word}\b", text):
+            return number
+
+    m = re.search(r"(\d+)", text)
+    if m:
+        n = int(m.group(1))
+        return n if n > 0 else 0
+    return 0
+
+
+def _apply_section_group_scoring(evaluated, exam_questions, exam):
+    """Best-N + cap per main group id; sets countableScore."""
+    policy = {}
+    for g in exam.get("mainQuestionGroups") or []:
+        if not isinstance(g, dict):
+            continue
+        gid = str(g.get("id", "")).strip()
+        if gid:
+            policy[gid] = g
+
+    q_by_id = {str(q["questionId"]): q for q in exam_questions}
+
+    for item in evaluated:
+        item["countableScore"] = float(_to_number(item.get("score")))
+
+    def _attempt_unit_key(question_id):
+        """
+        Selection unit for "Any N":
+        - Q3.1.a / Q3.1.b -> Q3.1 (count as one chosen question)
+        - Q1.2 -> Q1.2 (normal standalone)
+        """
+        qid = str(question_id or "").strip()
+        if not qid:
+            return qid
+        parts = [p for p in qid.split(".") if p]
+        if len(parts) >= 3:
+            tail = parts[-1].lower()
+            if re.fullmatch(r"[a-z]+|[ivxlcdm]+", tail):
+                return ".".join(parts[:-1])
+        return qid
+
+    # Build section->unit scores for optional global policies.
+    unit_scores = {}
+    unit_items = {}
+    for item in evaluated:
+        qid = str(item.get("id") or "")
+        qdoc = q_by_id.get(qid)
+        if not qdoc:
+            continue
+        sid = _section_key(_question_section_id(exam, qdoc.get("questionId")))
+        if not sid:
+            continue
+        unit = _attempt_unit_key(qid)
+        key = (sid, unit)
+        unit_scores[key] = unit_scores.get(key, 0.0) + _to_number(item.get("countableScore"))
+        unit_items.setdefault(key, []).append(item)
+
+    unit_marks_by_section = defaultdict(dict)
+    for (sid, unit), score in unit_scores.items():
+        unit_marks_by_section[sid][unit] = score
+
+    # IMPORTANT: keep legacy behavior unchanged unless an explicit policy is present
+    # or auto-detect is explicitly opted in.
+    qp = _effective_question_paper_json(exam) or {}
+    raw_policy = qp.get("selectionPolicy") if isinstance(qp, dict) else None
+    global_policy = raw_policy if isinstance(raw_policy, dict) else None
+    applied_policy_mode = "explicit" if global_policy else None
+    scoring_opts = qp.get("scoringOptions") if isinstance(qp, dict) else None
+    auto_detect_enabled = False
+    if isinstance(scoring_opts, dict):
+        auto_detect_enabled = bool(scoring_opts.get("autoDetectIcseSelectionPolicy"))
+    if not auto_detect_enabled:
+        auto_detect_enabled = bool(qp.get("autoDetectIcseSelectionPolicy"))
+    if not global_policy and auto_detect_enabled:
+        inferred = _infer_global_section_policy(exam, unit_marks_by_section)
+        if isinstance(inferred, dict):
+            global_policy = inferred
+            applied_policy_mode = "auto_icse"
+    if global_policy:
+        compulsory_id = _section_key(global_policy.get("compulsory"))
+        optional_ids = [_section_key(x) for x in (global_policy.get("optionals") or []) if _section_key(x)]
+        extra_n = int(global_policy.get("extra_pick_from_optionals") or 0)
+        if not compulsory_id or not optional_ids or extra_n < 0:
+            return evaluated
+
+        chosen_units = set()
+        # compulsory: include all units
+        for unit in unit_marks_by_section.get(compulsory_id, {}).keys():
+            chosen_units.add((compulsory_id, unit))
+        # one best from each optional
+        remainder_pool = []
+        for sid in optional_ids:
+            ranked = sorted(
+                unit_marks_by_section.get(sid, {}).items(),
+                key=lambda kv: kv[1],
+                reverse=True,
+            )
+            if ranked:
+                chosen_units.add((sid, ranked[0][0]))
+                remainder_pool.extend([(sid, u, sc) for u, sc in ranked[1:]])
+        # extra pick(s) from optional pool
+        if extra_n > 0 and remainder_pool:
+            remainder_pool.sort(key=lambda x: x[2], reverse=True)
+            for sid, unit, _ in remainder_pool[:extra_n]:
+                chosen_units.add((sid, unit))
+
+        for (sid, unit), items in unit_items.items():
+            if (sid, unit) in chosen_units:
+                for r in items:
+                    r["selectionPolicyApplied"] = applied_policy_mode
+                continue
+            for r in items:
+                r["countableScore"] = 0.0
+                r["excludedByGroupPolicy"] = True
+                r["selectionPolicyApplied"] = applied_policy_mode
+                r["exclusionReason"] = (
+                    f"Excluded by cross-section attempt policy ({global_policy['reason']})."
+                )
+        return evaluated
+
+    by_mg = defaultdict(list)
+    for item in evaluated:
+        qdoc = q_by_id.get(str(item.get("id")))
+        if not qdoc:
+            continue
+        mg = _question_main_group_id(exam, qdoc.get("questionId"))
+        if not mg or mg not in policy:
+            continue
+        g = policy[mg]
+        att = g.get("mainQuestionAttemptLimit")
+        cap = _to_number(g.get("mainQuestionMarksConsidered") or 0)
+        att_i = _attempt_limit_as_int(att, g.get("mainQuestionTotalOptions"))
+        has_att = att_i > 0
+        if not has_att and cap <= 0:
+            continue
+        by_mg[mg].append(item)
+
+    for mg, items in by_mg.items():
+        g = policy[mg]
+        att_i = _attempt_limit_as_int(
+            g.get("mainQuestionAttemptLimit"),
+            g.get("mainQuestionTotalOptions"),
+        )
+        n = att_i if att_i > 0 else len(items)
+        cap = _to_number(g.get("mainQuestionMarksConsidered") or 0)
+
+        # Group by parent question unit so "Any Two" selects two full questions, not two sub-parts.
+        unit_items = defaultdict(list)
+        for x in items:
+            unit_items[_attempt_unit_key(x.get("id"))].append(x)
+
+        ranked_units = sorted(
+            unit_items.items(),
+            key=lambda kv: sum(_to_number(i.get("countableScore")) for i in kv[1]),
+            reverse=True,
+        )
+
+        chosen_units = {uk for uk, _ in ranked_units[: max(0, n)]}
+        chosen = []
+        for uk, uitems in unit_items.items():
+            if uk in chosen_units:
+                chosen.extend(uitems)
+            else:
+                for r in uitems:
+                    r["countableScore"] = 0.0
+                    r["excludedByGroupPolicy"] = True
+                    r["exclusionReason"] = (
+                        f"Excluded by section attempt policy: best {n} question(s) considered for group {mg}."
+                    )
+
+        s = sum(_to_number(x.get("countableScore")) for x in chosen)
+        if cap > 0 and s > cap:
+            scale = cap / s if s > 0 else 0
+            for x in chosen:
+                x["countableScore"] = round(_to_number(x.get("countableScore")) * scale, 4)
+
+    return evaluated
 
 
 def _to_number(value):
@@ -256,6 +728,125 @@ def _infer_question_max_marks(question, rubric_lookup):
     return 0
 
 
+def _subject_from_structured_metadata(metadata):
+    """Prefer metadata.subject; derive from title (e.g. 'Conflict of Laws Examination')."""
+    if not isinstance(metadata, dict):
+        return None
+    s = str(metadata.get("subject") or "").strip()
+    if s:
+        return s
+    title = str(metadata.get("title") or "").strip()
+    if not title:
+        return None
+    t = re.sub(r"\s*examination\s*$", "", title, flags=re.IGNORECASE).strip()
+    t = re.sub(r"\s*exam\s*$", "", t, flags=re.IGNORECASE).strip()
+    return t or None
+
+
+def _default_exam_subject_from_question_json(question_json):
+    """Prefer metadata.subject (or title-derived), then section label, else first segment."""
+    if not isinstance(question_json, dict):
+        return "General"
+    structured = question_json.get("structured")
+    if isinstance(structured, dict):
+        meta = structured.get("metadata")
+        subj = _subject_from_structured_metadata(meta) if isinstance(meta, dict) else None
+        if subj:
+            return subj
+        secs = structured.get("sections") or []
+        if secs and isinstance(secs[0], dict):
+            sec = secs[0].get("section") or secs[0].get("section_id")
+            if sec:
+                return str(sec).strip() or "General"
+    seg0 = (question_json.get("segments") or [{}])[0]
+    if isinstance(seg0, dict) and seg0.get("section"):
+        return str(seg0["section"]).strip() or "General"
+    return "General"
+
+
+def _infer_section_attempt_mpq_cap(sec):
+    """
+    Per-section exam design: attempt × marks-per-option (when student picks any N).
+    If derived_marks_per_question is missing (e.g. instruction has no '(12 marks)'),
+    infer mpq from: (1) instruction total / attempt, (2) first question's marks (short or case parent).
+    """
+    if not isinstance(sec, dict):
+        return None, None, 0
+    mpq = sec.get("derived_marks_per_question") or sec.get("marks_per_question")
+    if mpq is not None:
+        try:
+            mpq_f = float(mpq)
+        except (TypeError, ValueError):
+            mpq_f = None
+    else:
+        mpq_f = None
+    attempt = sec.get("attempt")
+    if attempt is None:
+        attempt = extract_attempt(sec.get("instruction") or "")
+    try:
+        a = int(attempt) if attempt is not None else 0
+    except (TypeError, ValueError):
+        a = 0
+
+    inst = sec.get("instruction") or ""
+    total_sec = extract_section_marks(inst)
+    if mpq_f is None and total_sec and a > 0:
+        mpq_f = float(total_sec) / float(a)
+
+    if mpq_f is None and a > 0:
+        questions = sec.get("questions") or []
+        if questions:
+            q0 = questions[0]
+            m = q0.get("marks")
+            if m is not None:
+                try:
+                    mpq_f = float(m)
+                except (TypeError, ValueError):
+                    pass
+
+    if not a or mpq_f is None:
+        return None, None, 0
+    cap = a * mpq_f
+    cap_out = int(cap) if cap == int(cap) else cap
+    return a, mpq_f, cap_out
+
+
+def _sum_structured_section_caps(structured):
+    if not isinstance(structured, dict):
+        return 0
+    total = 0.0
+    for sec in structured.get("sections") or []:
+        if not isinstance(sec, dict):
+            continue
+        _a, _m, cap = _infer_section_attempt_mpq_cap(sec)
+        if cap and cap > 0:
+            total += cap
+    return round(total, 2) if total > 0 else 0
+
+
+def _sync_main_question_groups_from_structured(groups, structured):
+    """Align mainQuestionGroups with structured sections (attempt × mpq caps)."""
+    sections = (structured or {}).get("sections") or []
+    if not isinstance(groups, list) or not sections:
+        return groups
+    for i, g in enumerate(groups):
+        if i >= len(sections):
+            break
+        sec = sections[i]
+        if not isinstance(sec, dict):
+            continue
+        a, mpq_f, cap = _infer_section_attempt_mpq_cap(sec)
+        if cap and cap > 0:
+            g["mainQuestionMarksConsidered"] = cap
+            g["sectionMarksPerQuestion"] = int(mpq_f) if mpq_f == int(mpq_f) else mpq_f
+        elif a and mpq_f:
+            g["mainQuestionMarksConsidered"] = int(a * mpq_f) if (a * mpq_f) == int(a * mpq_f) else round(a * mpq_f, 2)
+            g["sectionMarksPerQuestion"] = int(mpq_f) if mpq_f == int(mpq_f) else mpq_f
+        if a is not None:
+            g["mainQuestionAttemptLimit"] = a
+    return groups
+
+
 def _extract_declared_total_marks(question_paper_json):
     if not isinstance(question_paper_json, dict):
         return 0
@@ -263,6 +854,20 @@ def _extract_declared_total_marks(question_paper_json):
     total_marks = _to_number(question_paper_json.get("paperTotalMarks"))
     if total_marks > 0:
         return total_marks
+
+    structured = question_paper_json.get("structured")
+    if isinstance(structured, dict):
+        total_marks = _to_number(structured.get("total_paper_marks"))
+        if total_marks > 0:
+            return total_marks
+        cap_sum = _sum_structured_section_caps(structured)
+        if cap_sum > 0:
+            return cap_sum
+        meta = structured.get("metadata")
+        if isinstance(meta, dict):
+            total_marks = _to_number(meta.get("total_marks"))
+            if total_marks > 0:
+                return total_marks
 
     total_marks = _to_number(question_paper_json.get("totalMarks"))
     if total_marks > 0:
@@ -276,19 +881,121 @@ def _extract_declared_total_marks(question_paper_json):
     return 0
 
 
+def _question_option_marks(question):
+    if not isinstance(question, dict):
+        return 0.0
+    subs = question.get("sub_questions")
+    if isinstance(subs, list) and subs:
+        sub_total = sum(_to_number(sq.get("marks")) for sq in subs if isinstance(sq, dict))
+        if sub_total > 0:
+            return float(sub_total)
+    return float(_to_number(question.get("marks")))
+
+
+def _should_enable_icse_auto_policy(question_paper_json):
+    """
+    High-confidence detector for ICSE-like pattern:
+    - one compulsory section
+    - three optional sections (B/C/D style)
+    - one pick from each optional + one extra optional pick
+    - total matches compulsory + 4 * optional-unit-marks
+    """
+    if not isinstance(question_paper_json, dict):
+        return False
+    if question_paper_json.get("autoDetectIcseSelectionPolicy"):
+        return True
+    scoring_opts = question_paper_json.get("scoringOptions")
+    if isinstance(scoring_opts, dict) and scoring_opts.get("autoDetectIcseSelectionPolicy"):
+        return True
+
+    structured = question_paper_json.get("structured")
+    sections = structured.get("sections") if isinstance(structured, dict) else None
+    if not isinstance(sections, list) or len(sections) < 4:
+        return False
+
+    compulsory_sections = []
+    optional_sections = []
+    for sec in sections:
+        if not isinstance(sec, dict):
+            continue
+        instr = str(sec.get("instruction") or "").lower()
+        if ("compulsory" in instr) or ("attempt all" in instr) or ("all questions" in instr):
+            compulsory_sections.append(sec)
+        else:
+            optional_sections.append(sec)
+
+    if len(compulsory_sections) != 1 or len(optional_sections) != 3:
+        return False
+
+    compulsory_qs = compulsory_sections[0].get("questions") or []
+    compulsory_marks = sum(_question_option_marks(q) for q in compulsory_qs if isinstance(q, dict))
+    if compulsory_marks <= 0:
+        return False
+
+    optional_unit_marks = []
+    for sec in optional_sections:
+        qs = [q for q in (sec.get("questions") or []) if isinstance(q, dict)]
+        if len(qs) < 2:
+            return False
+        marks = [_question_option_marks(q) for q in qs]
+        marks = [m for m in marks if m > 0]
+        if len(marks) < 2:
+            return False
+        marks.sort()
+        optional_unit_marks.append(marks[len(marks) // 2])
+
+    if not optional_unit_marks:
+        return False
+    base_optional = sorted(optional_unit_marks)[len(optional_unit_marks) // 2]
+    if base_optional <= 0:
+        return False
+
+    declared_total = _extract_declared_total_marks(question_paper_json)
+    if declared_total <= 0:
+        return False
+
+    # one each from 3 optionals + one extra from optionals => 4 optional picks
+    expected = compulsory_marks + (len(optional_sections) + 1) * base_optional
+    return abs(expected - declared_total) <= 2.0
+
+
 def _build_exam_payload(title, subject, question_paper_json, rubrics):
     question_segments = question_paper_json.get("segments", []) if isinstance(question_paper_json, dict) else []
+    main_questions = question_paper_json.get("mainQuestions", []) if isinstance(question_paper_json, dict) else []
     rubric_lookup = {str(item.get("id")): item.get("rubric", "") for item in rubrics}
     questions = [_question_to_frontend(question, rubric_lookup) for question in question_segments]
     stats = _calculate_exam_display_stats(questions)
+    main_question_groups = _build_main_question_groups_list(main_questions)
+    qp = question_paper_json if isinstance(question_paper_json, dict) else {}
+    st = qp.get("structured") or {}
+    main_question_groups = _sync_main_question_groups_from_structured(main_question_groups, st)
     declared_total_marks = _extract_declared_total_marks(question_paper_json)
+    partial_exam = {"mainQuestionGroups": main_question_groups, "questionPaperJson": qp}
+    cap_total = _sum_exam_marks_from_groups(partial_exam, questions)
+    if declared_total_marks > 0:
+        effective_total = declared_total_marks
+    elif cap_total > 0:
+        effective_total = cap_total
+    else:
+        effective_total = stats["totalMarks"]
     return {
         "title": title,
         "subject": subject,
         "questions": questions,
-        "totalMarks": declared_total_marks if declared_total_marks > 0 else stats["totalMarks"],
-        "extractedTotalMarks": declared_total_marks if declared_total_marks > 0 else stats["totalMarks"],
-        "displayQuestionCount": stats["displayQuestionCount"],
+        "totalMarks": effective_total,
+        "extractedTotalMarks": effective_total,
+        # Main paper questions (Q1–Q4); leafSegmentCount = every scorable line (Q1.1, Q3.1.a, …)
+        "displayQuestionCount": (
+            len(main_question_groups)
+            if main_question_groups
+            else (
+                len(st.get("sections") or [])
+                if st.get("sections")
+                else (len(question_segments) if question_segments else stats["displayQuestionCount"])
+            )
+        ),
+        "leafSegmentCount": len(question_segments) if question_segments else 0,
+        "mainQuestionGroups": main_question_groups,
         "rubrics": rubrics,
         "questionPaperJson": question_paper_json if isinstance(question_paper_json, dict) else {"segments": question_segments},
     }
@@ -370,15 +1077,17 @@ def _count_attempted_results(items):
 
 
 def _resolve_total_marks(source, questions=None):
-    total_marks = _to_number((source or {}).get("totalMarks"))
+    total_marks = _to_number((source or {}).get("extractedTotalMarks"))
     if total_marks > 0:
         return total_marks
-    total_marks = _to_number((source or {}).get("extractedTotalMarks"))
+    total_marks = _to_number((source or {}).get("totalMarks"))
     if total_marks > 0:
         return total_marks
     total_marks = _extract_declared_total_marks((source or {}).get("questionPaperJson"))
     if total_marks > 0:
         return total_marks
+    if (source or {}).get("mainQuestionGroups") and questions:
+        return _sum_exam_marks_from_groups(source, questions)
     return _sum_question_marks(questions or [])
 
 
@@ -391,6 +1100,8 @@ def _recalculate_exam_total_marks(source, questions=None):
     if total_marks > 0:
         return total_marks
 
+    if (source or {}).get("mainQuestionGroups") and questions:
+        return _sum_exam_marks_from_groups(source, questions)
     return _sum_question_marks(questions or [])
 
 
@@ -408,18 +1119,71 @@ def _resolve_script_exam_total_marks(script):
     total_marks = _to_number(script.get("examTotalMarks"))
     if total_marks > 0:
         return total_marks
-    return _sum_question_marks(script.get("questionsSnapshot", []))
+    snap = script.get("questionsSnapshot", [])
+    if script.get("examId"):
+        try:
+            exam = get_collection("exams").find_one({"_id": ObjectId(script.get("examId"))})
+        except Exception:
+            exam = None
+        if exam and exam.get("mainQuestionGroups") and snap:
+            return _sum_exam_marks_from_groups(exam, snap)
+    return _sum_question_marks(snap)
+
+
+def _leaf_segment_count_from_exam(exam):
+    """How many scorable leaf items (e.g. Q1.1 … Q4.4)."""
+    qp = (exam or {}).get("questionPaperJson") or {}
+    segs = qp.get("segments")
+    if isinstance(segs, list) and len(segs) > 0:
+        return len(segs)
+    qs = exam.get("questions") or []
+    return len(qs) if qs else 0
+
+
+def _main_section_count_from_exam(exam):
+    """How many main paper questions (Q1–Q4)."""
+    g = exam.get("mainQuestionGroups")
+    if isinstance(g, list) and len(g) > 0:
+        return len(g)
+    qp = (exam or {}).get("questionPaperJson") or {}
+    st = qp.get("structured") or {}
+    secs = st.get("sections")
+    if isinstance(secs, list) and len(secs) > 0:
+        return len(secs)
+    return 0
+
+
+def _exam_list_display_counts(exam):
+    """
+    displayQuestionCount = main sections (e.g. 4).
+    leafSegmentCount = leaf scorable items (e.g. 25).
+    Legacy rows stored displayQuestionCount as leaf count — fix when it equals leaf and is large.
+    """
+    leaf = exam.get("leafSegmentCount")
+    if leaf is None:
+        leaf = _leaf_segment_count_from_exam(exam)
+    main = exam.get("displayQuestionCount")
+    main_from_struct = _main_section_count_from_exam(exam)
+    if main is None:
+        main = main_from_struct
+    elif main_from_struct and main == leaf and leaf > 8:
+        main = main_from_struct
+    if not main:
+        main = _calculate_exam_display_stats(exam.get("questions", []))["displayQuestionCount"]
+    return main, leaf
 
 
 def _exam_list_item(exam):
+    """Summary row only — use GET /exams/:id for questions, rubrics, and groups."""
+    main_n, leaf_n = _exam_list_display_counts(exam)
     return {
         "id": str(exam["_id"]),
         "title": exam.get("title"),
         "subject": exam.get("subject"),
         "status": exam.get("status", "COMPLETED"),
         "totalMarks": _resolve_total_marks(exam, exam.get("questions", [])),
-        "displayQuestionCount": exam.get("displayQuestionCount", _calculate_exam_display_stats(exam.get("questions", []))["displayQuestionCount"]),
-        "questions": exam.get("questions", []),
+        "displayQuestionCount": main_n,
+        "leafSegmentCount": leaf_n,
         "createdAt": _iso(exam.get("createdAt")),
     }
 
@@ -443,15 +1207,23 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
         mapped_results.append(
             {
                 "id": question["questionId"],
-                "section": question.get("section"),
                 "question": question["questionText"],
                 "maxMarks": question.get("maxMarks", 0),
                 "answer": match.get("answer") if match else "Not found in student script",
+                "mappingStatus": (match.get("mappingStatus") if match else "missing"),
+                "matchStrategy": (match.get("matchStrategy") if match else "missing"),
+                "matchedSegmentId": (match.get("matchedSegmentId") if match else None),
+                "candidateSegmentIds": (match.get("candidateSegmentIds") if match else []),
             }
         )
 
     evaluation_input = {"rubrics": exam.get("rubrics", [])}
     evaluated = evaluate_mapped_results(mapped_results, evaluation_input)
+    evaluated = _apply_section_group_scoring(evaluated, exam_questions, exam)
+    selection_policy_applied = next(
+        (str(x.get("selectionPolicyApplied")) for x in evaluated if x.get("selectionPolicyApplied")),
+        None,
+    )
 
     result_items = []
     total_score = 0
@@ -464,19 +1236,24 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
         )
         max_marks = question_doc.get("maxMarks", 0) if question_doc else 0
         score = _to_number(item.get("score"))
-        total_score += score
+        countable = _to_number(item.get("countableScore", item.get("score")))
+        total_score += countable
 
         not_found = "not found" in str(item.get("answer", "")).lower()
+        is_ambiguous = str(item.get("mappingStatus", "")).lower() == "ambiguous"
         if not not_found:
             evaluated_count += 1
 
-        review_recommendation = "NEEDS_REVIEW" if not_found else "AUTO_APPROVED"
-        review_reason = "Answer was not confidently mapped to a question." if not_found else "Auto-evaluated from extracted mapping."
+        review_recommendation = "NEEDS_REVIEW" if (not_found or is_ambiguous) else "AUTO_APPROVED"
+        if is_ambiguous:
+            review_reason = "Multiple possible answer segments matched this question; manual review required."
+        else:
+            review_reason = "Answer was not confidently mapped to a question." if not_found else "Auto-evaluated from extracted mapping."
         if review_recommendation != "AUTO_APPROVED":
             review_items.append(
                 {
                     "questionId": str(item.get("id")),
-                    "totalScore": score,
+                    "totalScore": countable,
                     "maxScore": max_marks,
                     "reviewRecommendation": review_recommendation,
                     "reviewReason": review_reason,
@@ -496,9 +1273,11 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
                 "runId": str(uuid.uuid4()),
                 "scriptId": None,
                 "questionId": str(item.get("id")),
-                "totalScore": score,
+                "totalScore": countable,
+                "rawEvaluatedScore": score,
+                "excludedByGroupPolicy": bool(item.get("excludedByGroupPolicy")),
                 "maxPossibleScore": max_marks,
-                "percentageScore": round((score / max_marks) * 100, 2) if max_marks else 0,
+                "percentageScore": round((countable / max_marks) * 100, 2) if max_marks else 0,
                 "reviewRecommendation": review_recommendation,
                 "status": "COMPLETE",
                 "feedback": feedback_field,
@@ -521,6 +1300,7 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
         "percentageScore": round((total_score / exam_total_marks) * 100, 2) if exam_total_marks else 0,
         "evaluatedCount": evaluated_count,
         "reviewItems": review_items,
+        "selectionPolicyApplied": selection_policy_applied,
     }
 
 
@@ -779,9 +1559,10 @@ def exam_detail(exam_id):
         return error
     if request.method == "GET":
         payload = _serialize_doc(exam)
-        stats = _calculate_exam_display_stats(exam.get("questions", []))
-        payload["totalMarks"] = stats["totalMarks"]
-        payload["displayQuestionCount"] = stats["displayQuestionCount"]
+        main_n, leaf_n = _exam_list_display_counts(exam)
+        payload["totalMarks"] = _resolve_total_marks(exam, exam.get("questions", []))
+        payload["displayQuestionCount"] = main_n
+        payload["leafSegmentCount"] = leaf_n
         return jsonify(payload)
 
     get_collection("exams").delete_one({"_id": exam["_id"]})
@@ -806,7 +1587,6 @@ def create_exam_manual():
                 "questionLabel": question_id,
                 "questionText": question.get("questionText", ""),
                 "maxMarks": max_marks,
-                "section": question.get("section"),
                 "rubric": question.get("rubric", []),
             }
         )
@@ -827,6 +1607,7 @@ def create_exam_manual():
         "rubrics": rubrics,
         "totalMarks": stats["totalMarks"],
         "displayQuestionCount": stats["displayQuestionCount"],
+        "leafSegmentCount": len(normalized_questions),
         "createdAt": now,
         "updatedAt": now,
     }
@@ -846,15 +1627,44 @@ def _run_single_exam_processing(file_content, filename, institution_id, created_
         mime_type = "application/pdf" if filename.lower().endswith(".pdf") else "image/png"
         question_json_text = _extract_bytes_to_json(file_content, mime_type, filename, "question")
         question_json = json.loads(question_json_text)
-        rubrics_json_text = generate_rubrics_from_json(question_json_text)
+        segments = question_json.get("segments", [])
+        structured = question_json.get("structured")
+        if structured is None and isinstance(question_json, dict):
+            legacy_sections = question_json.get("structuredSections")
+            if legacy_sections is not None:
+                question_json["structured"] = {"sections": legacy_sections if isinstance(legacy_sections, list) else []}
+                structured = question_json["structured"]
+        if not segments:
+            err = question_json.get("error") if isinstance(question_json, dict) else None
+            raise ValueError(
+                f"Question extraction returned no segments. "
+                f"{'Reason: ' + str(err) if err else 'Please retry upload.'}"
+            )
+
+        minimal_for_storage = trim_question_paper_to_minimal(question_json)
+        rubrics_json_text = generate_rubrics_from_json(json.dumps(minimal_for_storage))
         rubrics_json = json.loads(rubrics_json_text)
 
         if not title:
             title = filename.rsplit(".", 1)[0]
-        if not subject:
-            subject = (question_json.get("segments", [{}])[0].get("section") or "General")
-        exam_payload = _build_exam_payload(title, subject, question_json, rubrics_json.get("rubrics", []))
-        
+        meta_subj = _default_exam_subject_from_question_json(question_json)
+        if not subject or str(subject).strip() in ("", "General"):
+            subject = meta_subj if meta_subj else "General"
+        pipeline_extras = expand_question_paper_for_pipeline(question_json, file_content, mime_type)
+        merged_paper = {**question_json, **pipeline_extras}
+        if _should_enable_icse_auto_policy(merged_paper):
+            merged_scoring = merged_paper.get("scoringOptions") if isinstance(merged_paper.get("scoringOptions"), dict) else {}
+            merged_scoring["autoDetectIcseSelectionPolicy"] = True
+            merged_paper["scoringOptions"] = merged_scoring
+            merged_paper["autoDetectIcseSelectionPolicy"] = True
+            minimal_scoring = minimal_for_storage.get("scoringOptions") if isinstance(minimal_for_storage.get("scoringOptions"), dict) else {}
+            minimal_scoring["autoDetectIcseSelectionPolicy"] = True
+            minimal_for_storage["scoringOptions"] = minimal_scoring
+            minimal_for_storage["autoDetectIcseSelectionPolicy"] = True
+
+        exam_payload = _build_exam_payload(title, subject, merged_paper, rubrics_json.get("rubrics", []))
+        exam_payload["questionPaperJson"] = minimal_for_storage
+
         now = _now()
         data_to_set = {
             "institutionId": institution_id,
@@ -965,6 +1775,7 @@ def add_exam_question(exam_id):
     stats = _calculate_exam_display_stats(exam["questions"])
     exam["totalMarks"] = _recalculate_exam_total_marks(exam, exam["questions"])
     exam["displayQuestionCount"] = stats["displayQuestionCount"]
+    exam["leafSegmentCount"] = len(exam["questions"])
     exam["rubrics"].append(
         {
             "id": question_id,
@@ -976,7 +1787,16 @@ def add_exam_question(exam_id):
     )
     get_collection("exams").update_one(
         {"_id": exam["_id"]},
-        {"$set": {"questions": exam["questions"], "rubrics": exam["rubrics"], "totalMarks": exam["totalMarks"], "displayQuestionCount": exam["displayQuestionCount"], "updatedAt": _now()}},
+        {
+            "$set": {
+                "questions": exam["questions"],
+                "rubrics": exam["rubrics"],
+                "totalMarks": exam["totalMarks"],
+                "displayQuestionCount": exam["displayQuestionCount"],
+                "leafSegmentCount": exam["leafSegmentCount"],
+                "updatedAt": _now(),
+            }
+        },
     )
     return jsonify({"message": "Question added", "examId": exam_id, "questionId": question_id, "question": question})
 
@@ -989,26 +1809,135 @@ def update_exam_question(exam_id, question_id):
     if error:
         return error
     data = request.get_json(force=True)
+    new_max_marks = _to_number(data["maxMarks"]) if data.get("maxMarks") is not None else None
+
+    def _rescale_criteria(criteria, target_max):
+        if not isinstance(criteria, list) or target_max is None:
+            return criteria
+        rows = [c for c in criteria if isinstance(c, dict)]
+        if not rows:
+            return criteria
+        current_total = sum(_to_number(c.get("maxMarks")) for c in rows)
+        if current_total <= 0:
+            each = (target_max / len(rows)) if len(rows) else 0
+            for c in rows:
+                c["maxMarks"] = int(each) if each == int(each) else round(each, 4)
+            return rows
+        scale = target_max / current_total if current_total > 0 else 0
+        for c in rows:
+            v = _to_number(c.get("maxMarks")) * scale
+            c["maxMarks"] = int(v) if v == int(v) else round(v, 4)
+        return rows
+
+    def _generate_single_rubric_row(qid, qtext, qmarks, section_hint=None):
+        if _to_number(qmarks) <= 0:
+            return None
+        payload = {
+            "segments": [
+                {
+                    "id": str(qid),
+                    "text": str(qtext or "").strip(),
+                    "marks": _to_number(qmarks),
+                    "section": section_hint or "Q1",
+                }
+            ]
+        }
+        try:
+            generated_json = generate_rubrics_from_json(json.dumps(payload, ensure_ascii=False))
+            parsed = json.loads(generated_json)
+            rows = parsed.get("rubrics") if isinstance(parsed, dict) else []
+            if isinstance(rows, list) and rows:
+                row = rows[0] if isinstance(rows[0], dict) else None
+                if row and str(row.get("rubric") or "").strip():
+                    return row
+        except Exception:
+            return None
+        return None
+
+    target_question_text = ""
+    target_rubric_text = ""
+    target_question_ref = None
     for question in exam.get("questions", []):
         if str(question.get("questionId")) == question_id:
             if data.get("questionText") is not None:
                 question["questionText"] = data["questionText"]
-            if data.get("maxMarks") is not None:
-                question["maxMarks"] = _to_number(data["maxMarks"])
+            if new_max_marks is not None:
+                question["maxMarks"] = new_max_marks
+                # Keep inline question rubric caps aligned when only marks are edited.
+                if data.get("rubric") is None and isinstance(question.get("rubric"), list):
+                    for item in question["rubric"]:
+                        if isinstance(item, dict):
+                            item["maxMarks"] = new_max_marks
             if data.get("rubric") is not None:
                 question["rubric"] = data["rubric"]
+            target_question_text = str(question.get("questionText") or "")
+            if isinstance(question.get("rubric"), list) and question.get("rubric"):
+                target_rubric_text = " ".join(
+                    f"{item.get('description', '')}".strip()
+                    for item in question.get("rubric", [])
+                    if isinstance(item, dict)
+                ).strip()
+            target_question_ref = question
     for rubric in exam.get("rubrics", []):
-        if str(rubric.get("id")) == question_id and data.get("rubric") is not None:
-            rubric["rubric"] = " ".join(
-                f"{item.get('description', '')} ({item.get('maxMarks', 0)} marks)."
-                for item in data["rubric"]
-            )
+        if str(rubric.get("id")) == question_id:
+            if data.get("rubric") is not None:
+                rubric["rubric"] = " ".join(
+                    f"{item.get('description', '')} ({item.get('maxMarks', 0)} marks)."
+                    for item in data["rubric"]
+                )
+                # If client submits criteria through rubric payload path in future, keep as-is.
+            elif new_max_marks is not None:
+                # Marks edited without rubric payload: keep existing rubric text,
+                # but rescale stored criteria so evaluation is no longer 0/0.
+                if isinstance(rubric.get("criteria"), list):
+                    rubric["criteria"] = _rescale_criteria(rubric.get("criteria"), new_max_marks)
+                else:
+                    generated = generate_criteria_for_question(
+                        target_question_text,
+                        rubric.get("rubric") or target_rubric_text,
+                        new_max_marks,
+                    )
+                    rubric["criteria"] = generated if generated else []
+
+                # If rubric text is placeholder/empty, regenerate full rubric row now that marks exist.
+                current_rubric_text = str(rubric.get("rubric") or "").strip().lower()
+                is_pending = ("rubric pending" in current_rubric_text) or (current_rubric_text == "")
+                if is_pending and target_question_ref is not None and new_max_marks > 0:
+                    generated_row = _generate_single_rubric_row(
+                        question_id,
+                        target_question_text,
+                        new_max_marks,
+                        section_hint=str((target_question_ref.get("sourceId") or target_question_ref.get("questionId") or "Q1")).split(".", 1)[0],
+                    )
+                    if generated_row:
+                        new_text = str(generated_row.get("rubric") or "").strip()
+                        if new_text:
+                            rubric["rubric"] = new_text
+                            if isinstance(generated_row.get("criteria"), list):
+                                rubric["criteria"] = generated_row.get("criteria")
+                            # Keep question snapshot rubric description aligned with rubric store.
+                            target_question_ref["rubric"] = [
+                                {
+                                    "description": new_text,
+                                    "maxMarks": new_max_marks,
+                                }
+                            ]
     stats = _calculate_exam_display_stats(exam["questions"])
     exam["totalMarks"] = _recalculate_exam_total_marks(exam, exam["questions"])
     exam["displayQuestionCount"] = stats["displayQuestionCount"]
+    exam["leafSegmentCount"] = len(exam.get("questions") or [])
     get_collection("exams").update_one(
         {"_id": exam["_id"]},
-        {"$set": {"questions": exam["questions"], "rubrics": exam["rubrics"], "totalMarks": exam["totalMarks"], "displayQuestionCount": exam["displayQuestionCount"], "updatedAt": _now()}},
+        {
+            "$set": {
+                "questions": exam["questions"],
+                "rubrics": exam["rubrics"],
+                "totalMarks": exam["totalMarks"],
+                "displayQuestionCount": exam["displayQuestionCount"],
+                "leafSegmentCount": exam["leafSegmentCount"],
+                "updatedAt": _now(),
+            }
+        },
     )
     return jsonify({"message": "Question updated"})
 
@@ -1078,6 +2007,7 @@ def _store_uploaded_script(exam, filename, mime_type, file_size, student_name, s
         "examTotalMarks": evaluation_bundle["examTotalMarks"],
         "percentageScore": evaluation_bundle["percentageScore"],
         "evaluatedCount": evaluation_bundle["evaluatedCount"],
+        "selectionPolicyApplied": evaluation_bundle.get("selectionPolicyApplied"),
         "questionsSnapshot": [
             {
                 "questionId": question["questionId"],
@@ -1194,6 +2124,7 @@ def _process_uploaded_script(uploaded_script_id, exam, raw_bytes, mime_type, fil
                         "examTotalMarks": evaluation_bundle["examTotalMarks"],
                         "percentageScore": evaluation_bundle["percentageScore"],
                         "evaluatedCount": evaluation_bundle["evaluatedCount"],
+                        "selectionPolicyApplied": evaluation_bundle.get("selectionPolicyApplied"),
                         "uploadStatus": upload_status,
                         "updatedAt": _now(),
                     }
@@ -1332,6 +2263,7 @@ def evaluation_list():
                 "percentageScore": script.get("percentageScore", 0),
                 "questionCount": len(script.get("questionsSnapshot", [])),
                 "evaluatedCount": script.get("evaluatedCount", _count_attempted_results(script.get("mappedResults", []))),
+                "selectionPolicyApplied": script.get("selectionPolicyApplied"),
                 "needsReview": bool(script.get("reviewItems")),
                 "createdAt": _iso(script.get("createdAt")),
             }
@@ -1357,6 +2289,7 @@ def evaluation_script(script_id):
         "percentageScore": script.get("percentageScore", 0),
         "questionCount": len(script.get("questionsSnapshot", [])),
         "evaluatedCount": script.get("evaluatedCount", _count_attempted_results(script.get("mappedResults", []))),
+        "selectionPolicyApplied": script.get("selectionPolicyApplied"),
         "answers": [
             {"questionId": item.get("id"), "text": item.get("answer")}
             for item in script.get("mappedResults", [])
@@ -1404,6 +2337,7 @@ def re_evaluate(script_id):
                 "examTotalMarks": evaluation_bundle["examTotalMarks"],
                 "percentageScore": evaluation_bundle["percentageScore"],
                 "evaluatedCount": evaluation_bundle["evaluatedCount"],
+                "selectionPolicyApplied": evaluation_bundle.get("selectionPolicyApplied"),
                 "uploadStatus": upload_status,
                 "updatedAt": _now(),
             }
@@ -1537,6 +2471,7 @@ def re_segment_script(script_id):
                 "examTotalMarks": evaluation_bundle["examTotalMarks"],
                 "percentageScore": evaluation_bundle["percentageScore"],
                 "evaluatedCount": evaluation_bundle["evaluatedCount"],
+                "selectionPolicyApplied": evaluation_bundle.get("selectionPolicyApplied"),
                 "uploadStatus": upload_status,
                 "updatedAt": _now(),
             }

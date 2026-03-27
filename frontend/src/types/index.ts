@@ -123,6 +123,9 @@ export interface EvaluationResult {
   feedback?: StudentFeedback | null;
   explainability?: ExplainabilityResult | null;
   totalScore: number;
+  rawEvaluatedScore?: number;
+  excludedByGroupPolicy?: boolean;
+  exclusionReason?: string;
   maxPossibleScore: number;
   percentageScore: number;
   reviewRecommendation: ReviewRecommendation;

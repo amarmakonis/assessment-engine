@@ -55,3 +55,11 @@ def get_raw_text(file_content, mime_type, filename, base64_content, client, fall
             raise Exception(f"Pixtral Fallback failed: {str(e)}")
 
     return text
+import re
+
+def clean_ocr_text(text):
+    text = re.sub(r'\n+', '\n', text)
+    text = re.sub(r' +', ' ', text)
+    text = text.replace('Q .', 'Q.')
+    text = re.sub(r'(\d)\s+\.', r'\1.', text)
+    return text.strip()

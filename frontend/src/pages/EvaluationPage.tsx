@@ -500,7 +500,23 @@ function QuestionAccordion({
     normalizedAnswerText === "" ||
     normalizedAnswerText.toLowerCase() === "not found in student script";
   const isNotAttempted = Boolean(isFlagged) || isMissingAnswer;
+  const isExcludedByPolicy = Boolean(ev.excludedByGroupPolicy);
   const pct = ev.maxPossibleScore > 0 ? (ev.totalScore / ev.maxPossibleScore) * 100 : 0;
+
+  function attemptUnitKey(questionId: string) {
+    const qid = String(questionId || "").trim();
+    const parts = qid.split(".").filter(Boolean);
+    if (parts.length >= 3) {
+      const tail = (parts[parts.length - 1] ?? "").toLowerCase();
+      if (/^[a-z]+$/.test(tail) || /^(i|ii|iii|iv|v|vi|vii|viii|ix|x)$/.test(tail)) {
+        return parts.slice(0, -1).join(".");
+      }
+    }
+    return qid;
+  }
+
+  const unitKey = attemptUnitKey(ev.questionId);
+  const hasParentUnit = unitKey !== ev.questionId;
 
   function scoreLabel(ratio: number) {
     if (ratio >= 0.7) return { color: "text-accent-green", bg: "bg-accent-green", border: "border-emerald-200" };
@@ -508,7 +524,9 @@ function QuestionAccordion({
     return { color: "text-accent-red", bg: "bg-accent-red", border: "border-red-200" };
   }
 
-  const qColors = isNotAttempted ? { color: "text-text-muted", bg: "bg-surface", border: "border-border" } : scoreLabel(pct / 100);
+  const qColors = (isNotAttempted || isExcludedByPolicy)
+    ? { color: "text-text-muted", bg: "bg-surface", border: "border-border" }
+    : scoreLabel(pct / 100);
 
   return (
     <GlassCard className="!p-0 overflow-hidden">
@@ -525,11 +543,21 @@ function QuestionAccordion({
             <span className={clsx("font-mono text-sm font-bold", qColors.color)}>
               {ev.totalScore}/{ev.maxPossibleScore}
             </span>
-            {!isNotAttempted && <span className="text-text-muted text-xs">({pct.toFixed(1)}%)</span>}
+            {!isNotAttempted && !isExcludedByPolicy && <span className="text-text-muted text-xs">({pct.toFixed(1)}%)</span>}
             {isNotAttempted && (
               <span className="text-xs px-2 py-0.5 rounded bg-surface text-text-muted border border-border">Not attempted</span>
             )}
-            {!isNotAttempted && <StatusBadge status={ev.reviewRecommendation} />}
+            {isExcludedByPolicy && (
+              <span className="text-xs px-2 py-0.5 rounded bg-surface text-text-muted border border-border">
+                Not considered (attempt limit)
+              </span>
+            )}
+            {hasParentUnit && (
+              <span className="text-xs px-2 py-0.5 rounded bg-surface text-text-muted border border-border">
+                {isExcludedByPolicy ? `Unit ${unitKey} excluded` : `Counted under ${unitKey}`}
+              </span>
+            )}
+            {!isNotAttempted && !isExcludedByPolicy && <StatusBadge status={ev.reviewRecommendation} />}
             {ev.reviewerOverride && (
               <span className="text-xs text-accent-orange flex items-center gap-1">
                 <Edit3 className="w-3 h-3" /> Overridden
@@ -607,7 +635,20 @@ function QuestionAccordion({
             <p className="text-sm text-text-muted italic">This question was not attempted — no answer was found in the script. Marks: 0/{ev.maxPossibleScore}.</p>
           )}
 
-          {!isNotAttempted && (
+          {isExcludedByPolicy && (
+            <div className="bg-card-alt border border-border rounded-lg p-4">
+              <p className="text-sm text-text-secondary">
+                This answer was evaluated but excluded by section attempt rules, so it is not counted in the final score.
+              </p>
+              {typeof ev.rawEvaluatedScore === "number" && (
+                <p className="text-xs text-text-muted mt-1">
+                  Raw evaluation (not counted): {ev.rawEvaluatedScore}/{ev.maxPossibleScore}
+                </p>
+              )}
+            </div>
+          )}
+
+          {!isNotAttempted && !isExcludedByPolicy && (
           <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>

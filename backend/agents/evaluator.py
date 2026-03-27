@@ -56,9 +56,32 @@ def _clamp01(val, default=0.75):
     return max(0.0, min(1.0, x))
 
 
-def _build_structured_evaluation(eval_json, marks, score):
+def _normalize_answer_text(value):
+    """Accept string/dict/list payloads and return a safe answer string."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        # Common structured payloads: {"text": "..."} or {"answer": "..."}
+        for key in ("text", "answer", "content"):
+            v = value.get(key)
+            if isinstance(v, str) and v.strip():
+                return v
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except Exception:
+            return str(value)
+    if isinstance(value, list):
+        try:
+            return "\n".join(str(x) for x in value if str(x).strip())
+        except Exception:
+            return str(value)
+    return str(value or "")
+
+
+def _build_structured_evaluation(eval_json, marks, score, rubric_criteria=None):
     """Turn model JSON into criterionScores + groundedRubric + feedback object."""
     raw_criteria = eval_json.get("criteria") if isinstance(eval_json.get("criteria"), list) else []
+    required_criteria = rubric_criteria if isinstance(rubric_criteria, list) else []
 
     criterion_scores = []
     grounded_criteria = []
@@ -89,6 +112,46 @@ def _build_structured_evaluation(eval_json, marks, score):
                 "isAmbiguous": False,
             }
         )
+
+    if required_criteria:
+        llm_by_id = {}
+        for row in raw_criteria:
+            if not isinstance(row, dict):
+                continue
+            cid = str(row.get("criterionId") or "").strip()
+            if cid and cid not in llm_by_id:
+                llm_by_id[cid] = row
+
+        criterion_scores = []
+        grounded_criteria = []
+        for idx, rc in enumerate(required_criteria):
+            if not isinstance(rc, dict):
+                continue
+            cid = str(rc.get("criterionId") or f"C{idx + 1}").strip() or f"C{idx + 1}"
+            desc = str(rc.get("description") or f"Criterion {idx + 1}").strip()
+            max_marks = _to_number(rc.get("maxMarks"), default=0)
+            llm_row = llm_by_id.get(cid) or {}
+            awarded = _to_number(llm_row.get("marksAwarded"), default=0)
+            awarded = max(0.0, min(awarded, max_marks))
+            criterion_scores.append(
+                {
+                    "criterionId": cid,
+                    "marksAwarded": awarded,
+                    "maxMarks": max_marks,
+                    "justificationQuote": str(llm_row.get("justificationQuote") or "").strip(),
+                    "justificationReason": str(llm_row.get("justificationReason") or "").strip(),
+                    "confidenceScore": _clamp01(llm_row.get("confidenceScore")),
+                }
+            )
+            grounded_criteria.append(
+                {
+                    "criterionId": cid,
+                    "description": desc,
+                    "maxMarks": max_marks,
+                    "requiredEvidencePoints": [],
+                    "isAmbiguous": False,
+                }
+            )
 
     if not criterion_scores and marks > 0:
         criterion_scores = [
@@ -183,15 +246,19 @@ def evaluate_mapped_results(mapped_results, rubrics_data):
     api_key = os.getenv("GROQ_API_KEY")
     client = Groq(api_key=api_key) if api_key else None
     groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    rubric_lookup = {
-        str(r.get("id")): r.get("rubric", "")
+    rubric_rows = {
+        str(r.get("id")): r
         for r in rubrics_data.get("rubrics", [])
+        if isinstance(r, dict) and str(r.get("id", "")).strip()
     }
     
+    # Keep original paper order stable for downstream UI rendering.
+    order_index = {str(item.get("id")): idx for idx, item in enumerate(mapped_results)}
     evaluated_results = []
     
     for item in mapped_results:
-        ans = item.get("answer", "")
+        ans = _normalize_answer_text(item.get("answer", ""))
+        item["answer"] = ans
         # If not found, score is 0
         if "Not found" in ans or not ans.strip():
             item["score"] = 0
@@ -206,7 +273,9 @@ def evaluate_mapped_results(mapped_results, rubrics_data):
             continue
             
         # Find rubric
-        rubric_text = rubric_lookup.get(str(item.get("id")), "No rubric found")
+        rubric_row = rubric_rows.get(str(item.get("id")), {})
+        rubric_text = str(rubric_row.get("rubric", "No rubric found"))
+        required_criteria = rubric_row.get("criteria") if isinstance(rubric_row.get("criteria"), list) else []
                 
         # Marks must come from the mapped item or the extracted question text.
         marks = _to_number(item.get("maxMarks"), default=0)
@@ -226,7 +295,8 @@ def evaluate_mapped_results(mapped_results, rubrics_data):
         else:
             final_q_text = q_text
                 
-        prompt = get_evaluation_prompt(final_q_text, ans, rubric_text, marks)
+        criteria_payload = json.dumps(required_criteria, ensure_ascii=False) if required_criteria else "[]"
+        prompt = get_evaluation_prompt(final_q_text, ans, rubric_text, marks, criteria_payload)
         try:
             response = client.chat.completions.create(
                 model=groq_model,
@@ -237,9 +307,13 @@ def evaluate_mapped_results(mapped_results, rubrics_data):
             eval_json = json.loads(response.choices[0].message.content)
             score = float(eval_json.get("score", 0))
             score = max(0, min(score, marks))
-            item["score"] = score
             item["feedback"] = eval_json.get("feedback", "")
-            crit, grounded, fb_obj = _build_structured_evaluation(eval_json, marks, score)
+            crit, grounded, fb_obj = _build_structured_evaluation(eval_json, marks, score, required_criteria)
+            if required_criteria:
+                # Ensure persisted score is exactly derived from fixed rubric criteria.
+                score = sum(_to_number(c.get("marksAwarded"), 0) for c in crit)
+                score = max(0, min(score, marks))
+            item["score"] = score
             item["criterionScores"] = crit
             item["groundedRubric"] = grounded
             item["feedbackStructured"] = fb_obj
@@ -261,7 +335,7 @@ def evaluate_mapped_results(mapped_results, rubrics_data):
         q_id = str(item["id"])
         # Match pattern like "28a" -> group 1="28", group 2="a"
         match = re.match(r'^(\d+)([a-zA-Z])$', q_id)
-        rubric_text = rubric_lookup.get(q_id, "")
+        rubric_text = str((rubric_rows.get(q_id) or {}).get("rubric", ""))
         question_text = item.get("question", "")
         if match and _looks_like_or_alternative(question_text, rubric_text):
             base_num = match.group(1)
@@ -292,12 +366,6 @@ def evaluate_mapped_results(mapped_results, rubrics_data):
         else:
             final_filtered.extend(group)
             
-    # Re-sort to maintain order
-    def sort_key(x):
-        id_str = str(x["id"])
-        match = re.search(r'^(\d+)', id_str)
-        num = int(match.group(1)) if match else 999
-        return (num, id_str)
-        
-    final_filtered.sort(key=sort_key)
+    # Re-sort using original mapped question order (handles Q1.10, Q3.1.a, etc.).
+    final_filtered.sort(key=lambda x: order_index.get(str(x.get("id")), 10**9))
     return final_filtered

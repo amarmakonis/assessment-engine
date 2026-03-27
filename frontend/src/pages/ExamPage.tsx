@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -39,14 +39,37 @@ interface ExamItem {
   id: string;
   title: string;
   subject: string;
-  status?: "PROCESSING" | "COMPLETED" | "FAILED";
+  status?: string;
   totalMarks: number;
+  /** Main paper sections (e.g. Q1–Q4 → 4). */
   displayQuestionCount?: number;
-  questions: any[];
+  /** Scorable leaf items (e.g. Q1.1 … Q3.1.a → 25). */
+  leafSegmentCount?: number;
+  questions?: any[];
   createdAt: string;
 }
 
 type CreateMode = "upload" | "manual";
+
+function getQuestionCountFromQuestionId(questions: any[]): number {
+  const ids = new Set<string>();
+  for (const question of questions || []) {
+    const raw = String(
+      question?.sourceId ||
+      question?.questionLabel ||
+      question?.questionDisplayId ||
+      question?.questionId ||
+      ""
+    ).trim();
+    if (!raw) continue;
+
+    // Universal rule: use numeric root from the original paper ID.
+    // Examples: "6.(a)" -> "6", "1.10" -> "1", "7a_i" -> "7".
+    const match = raw.match(/^(\d+)/);
+    ids.add(match?.[1] ?? raw);
+  }
+  return ids.size;
+}
 
 export function ExamPage() {
   const navigate = useNavigate();
@@ -56,6 +79,12 @@ export function ExamPage() {
   const [showForm, setShowForm] = useState(false);
   const [createMode, setCreateMode] = useState<CreateMode>("upload");
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
+  /** Questions loaded on demand when a row is expanded (list API is summary-only). */
+  const [examQuestionsDetail, setExamQuestionsDetail] = useState<Record<string, any[]>>({});
+  const [examDetailLoading, setExamDetailLoading] = useState<Record<string, boolean>>({});
+  const examsRef = useRef<ExamItem[]>([]);
+  /** Previous list snapshot for detecting PROCESSING → COMPLETED without nested setState. */
+  const examsListSnapshotRef = useRef<ExamItem[]>([]);
   const [examToDelete, setExamToDelete] = useState<string | null>(null);
   const [addQuestionExamId, setAddQuestionExamId] = useState<string | null>(null);
   const [addQuestionLabel, setAddQuestionLabel] = useState("");
@@ -80,13 +109,74 @@ export function ExamPage() {
   const loadExams = useCallback(async () => {
     try {
       const { data } = await examAPI.list();
-      setExams(data.items);
+      const nextItems = data.items;
+      const prev = examsListSnapshotRef.current;
+      const invalidateDetail: string[] = [];
+      for (const e of nextItems) {
+        const old = prev.find((p) => p.id === e.id);
+        if (old?.status === "PROCESSING" && e.status !== "PROCESSING") {
+          invalidateDetail.push(e.id);
+        }
+      }
+      examsListSnapshotRef.current = nextItems;
+      if (invalidateDetail.length) {
+        setExamQuestionsDetail((detail) => {
+          const next = { ...detail };
+          for (const id of invalidateDetail) delete next[id];
+          return next;
+        });
+      }
+      setExams(nextItems);
     } catch {
       toast.error("Failed to load exams");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    examsRef.current = exams;
+  }, [exams]);
+
+  const fetchExamQuestions = useCallback(async (examId: string) => {
+    const exam = examsRef.current.find((e) => e.id === examId);
+    const isProcessing = exam?.status === "PROCESSING";
+    setExamDetailLoading((d) => ({ ...d, [examId]: true }));
+    try {
+      const { data } = await examAPI.get(examId);
+      setExamQuestionsDetail((prev) => ({ ...prev, [examId]: data.questions ?? [] }));
+      setExams((prev) =>
+        prev.map((e) =>
+          e.id === examId
+            ? {
+                ...e,
+                totalMarks: data.totalMarks ?? e.totalMarks,
+                displayQuestionCount: data.displayQuestionCount ?? e.displayQuestionCount,
+                leafSegmentCount: data.leafSegmentCount ?? e.leafSegmentCount,
+              }
+            : e
+        )
+      );
+    } catch {
+      setExamQuestionsDetail((prev) => ({ ...prev, [examId]: [] }));
+      if (!isProcessing) {
+        toast.error("Failed to load exam questions");
+      }
+    } finally {
+      setExamDetailLoading((d) => ({ ...d, [examId]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!expandedExam) return;
+    if (examQuestionsDetail[expandedExam] !== undefined) return;
+    const ex = examsRef.current.find((e) => e.id === expandedExam);
+    if (ex?.status === "PROCESSING") {
+      setExamQuestionsDetail((prev) => ({ ...prev, [expandedExam]: [] }));
+      return;
+    }
+    void fetchExamQuestions(expandedExam);
+  }, [expandedExam, examQuestionsDetail, fetchExamQuestions]);
 
   useEffect(() => {
     loadExams();
@@ -162,7 +252,15 @@ export function ExamPage() {
         rubric: rubric.length > 0 ? rubric : undefined,
       });
       toast.success("Question added. Re-segment or re-evaluate scripts to use it.");
+      const targetExam = addQuestionExamId;
       setAddQuestionExamId(null);
+      if (targetExam) {
+        setExamQuestionsDetail((d) => {
+          const next = { ...d };
+          delete next[targetExam];
+          return next;
+        });
+      }
       loadExams();
     } catch (e: unknown) {
       const msg = e && typeof e === "object" && "response" in e && typeof (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message === "string"
@@ -190,8 +288,16 @@ export function ExamPage() {
         maxMarks: editQuestionMarks,
       });
       toast.success("Question updated.");
+      const targetExam = editQuestionExamId;
       setEditQuestionExamId(null);
       setEditQuestionId(null);
+      if (targetExam) {
+        setExamQuestionsDetail((d) => {
+          const next = { ...d };
+          delete next[targetExam];
+          return next;
+        });
+      }
       loadExams();
     } catch {
       toast.error("Failed to update question");
@@ -602,7 +708,25 @@ export function ExamPage() {
         </GlassCard>
       ) : (
         <div className="space-y-3">
-          {exams.map((exam) => (
+          {exams.map((exam) => {
+            const rowQuestions = examQuestionsDetail[exam.id] ?? exam.questions ?? [];
+            const mainSections =
+              exam.displayQuestionCount ??
+              (rowQuestions.length ? getQuestionCountFromQuestionId(rowQuestions) : 0);
+            const leafParts =
+              exam.leafSegmentCount ??
+              (rowQuestions.length > 0 ? rowQuestions.length : undefined);
+            const countLabel =
+              mainSections > 0
+                ? `${mainSections} section${mainSections === 1 ? "" : "s"}${
+                    leafParts != null && leafParts > 0 && leafParts !== mainSections
+                      ? ` (${leafParts} parts)`
+                      : ""
+                  }`
+                : leafParts != null && leafParts > 0
+                  ? `${leafParts} part${leafParts === 1 ? "" : "s"}`
+                  : "—";
+            return (
             <GlassCard key={exam.id}>
               <div
                 className="flex items-center justify-between cursor-pointer"
@@ -623,7 +747,7 @@ export function ExamPage() {
                       )}
                     </div>
                     <p className="text-text-secondary text-sm">
-                      {exam.subject} — {exam.displayQuestionCount ?? exam.questions.length} questions — {exam.totalMarks} marks
+                      {exam.subject} — {countLabel} — {exam.totalMarks} marks
                     </p>
                   </div>
                 </div>
@@ -669,10 +793,22 @@ export function ExamPage() {
                       Add missing question
                     </button>
                   </div>
-                  {(() => {
+                  {examDetailLoading[exam.id] && examQuestionsDetail[exam.id] === undefined ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="w-7 h-7 animate-spin text-accent-blue" />
+                    </div>
+                  ) : rowQuestions.length === 0 ? (
+                    <p className="text-sm text-text-secondary text-center py-6 rounded-lg border border-dashed border-border bg-surface/50">
+                      {exam.status === "PROCESSING"
+                        ? "This exam is still being built from the question paper. Questions and marks will appear here when processing finishes — nothing is wrong if this is empty for a minute or two."
+                        : exam.status === "FAILED"
+                          ? "Processing did not complete. Try uploading the question paper again or check server logs."
+                          : "No questions on this exam yet."}
+                    </p>
+                  ) : (() => {
                     // Group questions by context
                     const groups: { context?: string; questions: any[] }[] = [];
-                    exam.questions.forEach((q) => {
+                    rowQuestions.forEach((q) => {
                       const lastGroup = groups[groups.length - 1];
                       if (lastGroup && lastGroup.context === q.context) {
                         lastGroup.questions.push(q);
@@ -695,13 +831,13 @@ export function ExamPage() {
                         
                         <div className="space-y-3">
                           {group.questions.map((q: any, i: number) => (
-                            <div key={q.questionId ?? i} className="bg-surface border border-border rounded-lg p-3">
+                            <div key={q.orderedId || q.questionId || i} className="bg-surface border border-border rounded-lg p-3">
                               <div className="flex justify-between items-start gap-2">
                                 <p className="text-sm text-text-primary flex-1 min-w-0">
                                   <span className="text-accent-blue font-mono mr-2 font-bold">
                                     {q.questionNumberOr != null && q.questionNumber != null
                                       ? `Q${q.questionNumber} OR Q${q.questionNumberOr}`
-                                      : `Q${(q.questionId || String(i + 1)).replace(/^q/i, "")}`}
+                                      : `Q${String(q.orderedId || q.questionDisplayId || q.questionId || String(i + 1)).replace(/^q/i, "")}`}
                                   </span>
                                   {q.questionText}
                                 </p>
@@ -721,7 +857,7 @@ export function ExamPage() {
                                     <>
                                       <div className="pl-6 space-y-1">
                                         <p className="text-xs font-medium text-text-primary">
-                                          Criteria for Q{q.questionNumber ?? (q.questionId || "").replace(/^q/i, "")} ({q.rubric?.reduce((s: number, r: any) => s + (r.maxMarks ?? 0), 0) ?? 0} marks)
+                                          Criteria for Q{q.questionNumber ?? String(q.orderedId || q.questionDisplayId || q.questionId || "").replace(/^q/i, "")} ({q.rubric?.reduce((s: number, r: any) => s + (r.maxMarks ?? 0), 0) ?? 0} marks)
                                         </p>
                                         {q.rubric.map((r: any, j: number) => (
                                           <p key={j} className="text-xs text-text-secondary">
@@ -760,7 +896,8 @@ export function ExamPage() {
                 </div>
               )}
             </GlassCard>
-          ))}
+            );
+          })}
         </div>
       )}
 

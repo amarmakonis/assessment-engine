@@ -165,15 +165,16 @@ export const examAPI = {
   }) => api.post<{
     examId: string;
     totalMarks: number;
-    exam: {
-      id: string;
-      title: string;
-      subject: string;
-      totalMarks: number;
-      displayQuestionCount?: number;
-      questions: any[];
-      createdAt: string;
-    };
+      exam: {
+        id: string;
+        title: string;
+        subject: string;
+        totalMarks: number;
+        displayQuestionCount?: number;
+        leafSegmentCount?: number;
+        questions: any[];
+        createdAt: string;
+      };
   }>("/exams/", data),
   upload: (formData: FormData) =>
     api.post<{
@@ -188,7 +189,7 @@ export const examAPI = {
         subject: string;
         totalMarks: number;
         displayQuestionCount?: number;
-        questions: any[];
+        status?: string;
         createdAt: string;
       };
     }>("/exams/upload", formData, {
@@ -197,7 +198,16 @@ export const examAPI = {
     }),
   list: (params?: { page?: number; perPage?: number }) =>
     api.get<{
-      items: { id: string; title: string; subject: string; totalMarks: number; questions: any[]; createdAt: string }[];
+      items: {
+        id: string;
+        title: string;
+        subject: string;
+        totalMarks: number;
+        displayQuestionCount?: number;
+        leafSegmentCount?: number;
+        status?: string;
+        createdAt: string;
+      }[];
       total: number;
     }>("/exams/", { params }),
   get: (examId: string) => api.get<any>(`/exams/${examId}`),
