@@ -1,6 +1,11 @@
 import json
+import logging
 import re
+import time
+
 from prompts import get_extract_answers_prompt
+
+logger = logging.getLogger(__name__)
 
 _MISSING_MARKER = "not found in student script"
 
@@ -133,12 +138,19 @@ def map_answers(segmented_as_json, ids, client):
     """
     prompt = get_extract_answers_prompt(segmented_as_json, ', '.join(ids))
 
+    t0 = time.perf_counter()
     response = client.chat.complete(
         model="mistral-large-latest",
         messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
     )
-    
+    logger.info(
+        "Answer mapping (mistral-large-latest) done in %.1fs prompt_chars=%d question_ids=%d",
+        time.perf_counter() - t0,
+        len(prompt or ""),
+        len(ids or []),
+    )
+
     content = response.choices[0].message.content
     parsed = json.loads(content)
     results = parsed if isinstance(parsed, list) else (parsed.get('answers') or parsed.get('results') or [])

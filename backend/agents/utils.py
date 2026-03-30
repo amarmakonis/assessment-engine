@@ -1,8 +1,25 @@
+import logging
 import time
+
+logger = logging.getLogger(__name__)
+
+
+def _mistral_error_retryable(exc):
+    err = str(exc)
+    low = err.lower()
+    return (
+        "429" in err
+        or "rate limit" in low
+        or "rate_limited" in low
+        or "503" in err
+        or "504" in err
+        or "internal server error" in low
+    )
+
 
 def get_raw_text(file_content, mime_type, filename, base64_content, client, fallback_prompt):
     text = ""
-    max_retries = 3
+    max_retries = 5
     attempt: int = 0
     ocr_error = None
 
@@ -25,10 +42,11 @@ def get_raw_text(file_content, mime_type, filename, base64_content, client, fall
         except Exception as e:
             ocr_error = e
             attempt += 1
-            print(f"Mistral OCR API attempt {attempt} failed: {str(e)}")
-            
-            if attempt < max_retries and ("503" in str(e) or "504" in str(e) or "Internal server error" in str(e)):
-                time.sleep(pow(2, attempt))
+            logger.warning("Mistral OCR attempt %s failed: %s", attempt, e)
+            if attempt < max_retries and _mistral_error_retryable(e):
+                delay = min(120, 8 * (2 ** (attempt - 1)))
+                logger.info("Retrying Mistral OCR in %ss…", delay)
+                time.sleep(delay)
                 continue
 
             break

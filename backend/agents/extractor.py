@@ -6,8 +6,10 @@ Handles: MCQ, Short, Long, Situational/Case Study, OR logic,
 
 import copy
 import json
+import logging
 import os
 import re
+import time
 import subprocess
 import tempfile
 
@@ -20,6 +22,9 @@ from agents.processor import (
     extract_attempt,
     global_segment_id,
 )
+from agents.utils import _mistral_error_retryable
+
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -76,12 +81,32 @@ def _extract_paper_total_marks(raw_text):
 
 def _call_llm_json(client, prompt, label=""):
     """Call the LLM and return raw JSON string or raise."""
-    response = client.chat.complete(
-        model="mistral-large-latest",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-    )
-    return response.choices[0].message.content
+    max_attempts = 5
+    last_exc = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.chat.complete(
+                model="mistral-large-latest",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            last_exc = e
+            if attempt < max_attempts and _mistral_error_retryable(e):
+                delay = min(120, 8 * (2 ** (attempt - 1)))
+                logger.warning(
+                    "Mistral structuring (%s) attempt %s/%s: %s — retry in %ss",
+                    label or "paper",
+                    attempt,
+                    max_attempts,
+                    e,
+                    delay,
+                )
+                time.sleep(delay)
+                continue
+            raise
+    raise last_exc
 
 
 def _structure_paper(text, client):

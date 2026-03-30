@@ -31,7 +31,11 @@ from agents.extractor import (
 )
 from agents.processor import extract_attempt, extract_section_marks
 from agents.mapper import map_answers
-from agents.rubrics import generate_rubrics_from_json, generate_criteria_for_question
+from agents.rubrics import (
+    generate_criteria_for_questions_batch,
+    generate_rubrics_from_json,
+    generate_criteria_for_question,
+)
 from agents.segmenter import segment_answer_script
 from agents.batch_manager import BatchManager
 from tasks import process_exam_task, process_script_task, process_batch_task
@@ -1188,6 +1192,244 @@ def _exam_list_item(exam):
     }
 
 
+_DEFERRED_RUBRIC_MARKERS = (
+    "will be generated when an answer script is evaluated",
+    "rubric pending",
+)
+
+
+def _deferred_rubrics_for_new_exam(question_paper_json):
+    """Placeholders only — Groq rubric/criteria generation runs on first evaluation per question."""
+    segs = question_paper_json.get("segments", []) if isinstance(question_paper_json, dict) else []
+    out = []
+    for s in segs:
+        if not isinstance(s, dict):
+            continue
+        sid = str(s.get("id", "")).strip()
+        if not sid:
+            continue
+        marks = _to_number(s.get("marks", 0))
+        if marks <= 0:
+            out.append(
+                {
+                    "id": sid,
+                    "rubric": "Rubric pending: question marks are missing. Set marks and regenerate rubric.",
+                    "criteria": [],
+                }
+            )
+        else:
+            out.append(
+                {
+                    "id": sid,
+                    "rubric": "Rubric will be generated when an answer script is evaluated.",
+                    "criteria": [],
+                }
+            )
+    return out
+
+
+def _deferred_rubric_wording(rubric_row):
+    if not rubric_row or not isinstance(rubric_row, dict):
+        return True
+    t = str(rubric_row.get("rubric") or "").strip().lower()
+    if not t:
+        return True
+    return any(m in t for m in _DEFERRED_RUBRIC_MARKERS)
+
+
+def _sync_exam_questions_rubric_display(exam):
+    rubric_lookup = {
+        str(r.get("id")): str(r.get("rubric") or "").strip() for r in exam.get("rubrics", []) if isinstance(r, dict)
+    }
+    for q in exam.get("questions", []):
+        if not isinstance(q, dict):
+            continue
+        qid = str(q.get("questionId", ""))
+        text = rubric_lookup.get(qid, "")
+        if not text:
+            continue
+        mm = q.get("maxMarks", 0)
+        q["rubric"] = [{"description": text, "maxMarks": mm}]
+
+
+def _persist_exam_rubrics_to_db(exam):
+    eid = exam.get("_id")
+    if not eid:
+        return
+    oid = eid if isinstance(eid, ObjectId) else ObjectId(str(eid))
+    get_collection("exams").update_one(
+        {"_id": oid},
+        {"$set": {"rubrics": exam.get("rubrics", []), "questions": exam.get("questions", []), "updatedAt": _now()}},
+    )
+
+
+def _ensure_rubrics_for_mapped_items(exam, mapped_results):
+    """
+    For each question the student actually attempted, ensure rubric + criteria exist
+    (lazy Groq) when the exam was created with deferred placeholders.
+    Uses one batched rubric call and one batched criteria call instead of per-question round-trips.
+    """
+    rubrics = exam.get("rubrics")
+    if not isinstance(rubrics, list):
+        rubrics = []
+        exam["rubrics"] = rubrics
+    by_id = {
+        str(r.get("id")): i
+        for i, r in enumerate(rubrics)
+        if isinstance(r, dict) and str(r.get("id", "")).strip()
+    }
+    q_by_id = {str(q.get("questionId")): q for q in exam.get("questions", []) if isinstance(q, dict)}
+    changed = False
+    pending_deferred = []
+    criteria_only = []
+
+    for item in mapped_results:
+        qid = str(item.get("id", ""))
+        if not qid:
+            continue
+        marks = _to_number(item.get("maxMarks", 0))
+        ans = str(item.get("answer", "") or "").strip()
+        if not ans or "not found" in ans.lower():
+            continue
+        if marks <= 0:
+            continue
+
+        idx = by_id.get(qid)
+        if idx is None:
+            rubrics.append({"id": qid, "rubric": "", "criteria": []})
+            idx = len(rubrics) - 1
+            by_id[qid] = idx
+            changed = True
+        row = rubrics[idx]
+
+        qdoc = q_by_id.get(qid, {})
+        qtext = str(qdoc.get("questionText") or item.get("question") or "")
+
+        if _deferred_rubric_wording(row):
+            pending_deferred.append({"idx": idx, "qid": qid, "qtext": qtext, "marks": marks})
+            continue
+
+        crit = row.get("criteria") if isinstance(row.get("criteria"), list) else []
+        if not crit:
+            rt = str(row.get("rubric") or "").strip()
+            rt_lower = rt.lower()
+            if (
+                rt
+                and marks > 0
+                and "rubric pending" not in rt_lower
+                and "rubric will be generated" not in rt_lower
+            ):
+                criteria_only.append(
+                    {
+                        "idx": idx,
+                        "id": qid,
+                        "questionText": qtext,
+                        "rubricText": rt,
+                        "marks": marks,
+                    }
+                )
+
+    if pending_deferred:
+        segments = [
+            {
+                "id": str(p["qid"]),
+                "text": str(p["qtext"] or "").strip(),
+                "marks": _to_number(p["marks"]),
+                "section": "Q1",
+            }
+            for p in pending_deferred
+        ]
+        try:
+            generated_json = generate_rubrics_from_json(json.dumps({"segments": segments}, ensure_ascii=False))
+            parsed = json.loads(generated_json)
+            rows_out = parsed.get("rubrics") if isinstance(parsed, dict) else []
+            by_gen_id = {}
+            if isinstance(rows_out, list):
+                for r in rows_out:
+                    if isinstance(r, dict):
+                        rid = str(r.get("id", "")).strip()
+                        if rid and rid not in by_gen_id:
+                            by_gen_id[rid] = r
+            for p in pending_deferred:
+                rid = str(p["qid"])
+                gen_row = by_gen_id.get(rid)
+                if not gen_row:
+                    for k, v in by_gen_id.items():
+                        if _normalize_id(k) == _normalize_id(rid):
+                            gen_row = v
+                            break
+                if gen_row and str(gen_row.get("rubric") or "").strip():
+                    rubrics[p["idx"]] = {
+                        "id": rid,
+                        "rubric": str(gen_row.get("rubric") or "").strip(),
+                        "criteria": gen_row.get("criteria") if isinstance(gen_row.get("criteria"), list) else [],
+                    }
+                    changed = True
+        except Exception:
+            pass
+
+    crit_after_rubric = list(criteria_only)
+    for p in pending_deferred:
+        row = rubrics[p["idx"]]
+        if not isinstance(row, dict):
+            continue
+        crit = row.get("criteria") if isinstance(row.get("criteria"), list) else []
+        rt = str(row.get("rubric") or "").strip()
+        rt_lower = rt.lower()
+        mm = _to_number(p["marks"])
+        if (
+            not crit
+            and rt
+            and mm > 0
+            and "rubric pending" not in rt_lower
+            and "rubric will be generated" not in rt_lower
+        ):
+            crit_after_rubric.append(
+                {
+                    "idx": p["idx"],
+                    "id": p["qid"],
+                    "questionText": str(p["qtext"] or "").strip(),
+                    "rubricText": rt,
+                    "marks": mm,
+                }
+            )
+
+    seen_crit_idx = set()
+    crit_deduped = []
+    for c in crit_after_rubric:
+        ix = c["idx"]
+        if ix in seen_crit_idx:
+            continue
+        seen_crit_idx.add(ix)
+        crit_deduped.append(c)
+
+    if crit_deduped:
+        batch_in = [
+            {"id": c["id"], "questionText": c["questionText"], "rubricText": c["rubricText"], "marks": c["marks"]}
+            for c in crit_deduped
+        ]
+        crit_map = generate_criteria_for_questions_batch(batch_in)
+        for c in crit_deduped:
+            sid = str(c["id"])
+            rows = crit_map.get(sid)
+            if rows is None:
+                for k, v in crit_map.items():
+                    if _normalize_id(k) == _normalize_id(sid):
+                        rows = v
+                        break
+            if rows:
+                idx = c["idx"]
+                old = rubrics[idx]
+                updated = dict(old) if isinstance(old, dict) else {"id": sid}
+                updated["criteria"] = rows
+                rubrics[idx] = updated
+                changed = True
+
+    if changed:
+        _sync_exam_questions_rubric_display(exam)
+        _persist_exam_rubrics_to_db(exam)
+
+
 def _evaluate_answers_for_exam(exam, answer_json_text):
     exam_questions = exam.get("questions", [])
     ids = [question["questionId"] for question in exam_questions]
@@ -1216,6 +1458,8 @@ def _evaluate_answers_for_exam(exam, answer_json_text):
                 "candidateSegmentIds": (match.get("candidateSegmentIds") if match else []),
             }
         )
+
+    _ensure_rubrics_for_mapped_items(exam, mapped_results)
 
     evaluation_input = {"rubrics": exam.get("rubrics", [])}
     evaluated = evaluate_mapped_results(mapped_results, evaluation_input)
@@ -1660,8 +1904,7 @@ def _run_single_exam_processing(file_content, filename, institution_id, created_
             )
 
         minimal_for_storage = trim_question_paper_to_minimal(question_json)
-        rubrics_json_text = generate_rubrics_from_json(json.dumps(minimal_for_storage))
-        rubrics_json = json.loads(rubrics_json_text)
+        rubrics_list = _deferred_rubrics_for_new_exam(minimal_for_storage)
 
         if not title:
             title = filename.rsplit(".", 1)[0]
@@ -1680,7 +1923,7 @@ def _run_single_exam_processing(file_content, filename, institution_id, created_
             minimal_for_storage["scoringOptions"] = minimal_scoring
             minimal_for_storage["autoDetectIcseSelectionPolicy"] = True
 
-        exam_payload = _build_exam_payload(title, subject, merged_paper, rubrics_json.get("rubrics", []))
+        exam_payload = _build_exam_payload(title, subject, merged_paper, rubrics_list)
         exam_payload["questionPaperJson"] = minimal_for_storage
 
         now = _now()
@@ -1919,7 +2162,11 @@ def update_exam_question(exam_id, question_id):
 
                 # If rubric text is placeholder/empty, regenerate full rubric row now that marks exist.
                 current_rubric_text = str(rubric.get("rubric") or "").strip().lower()
-                is_pending = ("rubric pending" in current_rubric_text) or (current_rubric_text == "")
+                is_pending = (
+                    ("rubric pending" in current_rubric_text)
+                    or ("will be generated when an answer" in current_rubric_text)
+                    or (current_rubric_text == "")
+                )
                 if is_pending and target_question_ref is not None and new_max_marks > 0:
                     generated_row = _generate_single_rubric_row(
                         question_id,

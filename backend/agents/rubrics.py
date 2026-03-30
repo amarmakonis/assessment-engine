@@ -65,6 +65,83 @@ def _normalize_criteria(rows, marks):
     return cleaned
 
 
+def generate_criteria_for_questions_batch(items):
+    """
+    One Groq call to build criteria for many questions (replaces N sequential criteria calls).
+    items: list of dicts with keys id, questionText, rubricText, marks
+    Returns: { question_id_str: [criteria dicts], ... }
+    """
+    rows = [x for x in items if isinstance(x, dict) and str(x.get("id", "")).strip()]
+    if not rows:
+        return {}
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return {}
+    try:
+        payload = []
+        marks_lookup = {}
+        for it in rows:
+            qid = str(it.get("id", "")).strip()
+            mm = _to_number(it.get("marks"))
+            marks_lookup[qid] = mm
+            payload.append(
+                {
+                    "id": qid,
+                    "questionText": str(it.get("questionText") or "").strip(),
+                    "rubricText": str(it.get("rubricText") or "").strip(),
+                    "marks": mm,
+                }
+            )
+        body = json.dumps(payload, ensure_ascii=False, indent=2)
+        prompt = f"""You are preparing grading criteria for multiple exam questions in one response.
+
+INPUT (each object is one question):
+{body}
+
+RULES:
+- For EACH input object, produce one criteria list keyed by its exact "id" string in the output.
+- Per question: 2 to 5 criteria; criterionId must be C1, C2, ... in order; include description and maxMarks.
+- Sum of maxMarks for that question must equal the input "marks" for that question.
+- Return only JSON.
+
+OUTPUT SHAPE:
+{{"byId": {{"<id-exactly-as-in-input>": [{{"criterionId":"C1","description":"...","maxMarks": 0}}] }}}}
+
+Every id from the input must appear as a key in byId."""
+
+        client_groq = Groq(api_key=api_key)
+        response = client_groq.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+        parsed = json.loads(response.choices[0].message.content)
+        by_id = parsed.get("byId") if isinstance(parsed, dict) else None
+        if not isinstance(by_id, dict):
+            return {}
+        out = {}
+        for qid, crit_rows in by_id.items():
+            qs = str(qid).strip()
+            if not qs or not isinstance(crit_rows, list):
+                continue
+            target_marks = marks_lookup.get(qs)
+            if target_marks is None:
+                for k, v in marks_lookup.items():
+                    if _normalize_id(k) == _normalize_id(qs):
+                        target_marks = v
+                        qs = k
+                        break
+            if target_marks is None:
+                target_marks = 0
+            normed = _normalize_criteria(crit_rows, target_marks)
+            if normed:
+                out[qs] = normed
+        return out
+    except Exception:
+        return {}
+
+
 def generate_criteria_for_question(question_text, rubric_text, marks):
     """
     Generate criterion template for a single question using LLM.
@@ -134,19 +211,6 @@ def generate_rubrics_from_json(qp_json_str):
             if text:
                 return text
         return ""
-
-    def _call_criteria_for_question(seg, rubric_text):
-        q_text = str(seg.get("text") or "").strip()
-        marks = _to_number(seg.get("marks"))
-        prompt = get_rubric_criteria_prompt(q_text, str(rubric_text or ""), marks)
-        response = client_groq.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-        )
-        parsed = json.loads(response.choices[0].message.content)
-        return _normalize_criteria(parsed.get("criteria") if isinstance(parsed, dict) else [], marks)
 
     rubrics_out = _call_for_segments(segments)
 
@@ -231,6 +295,7 @@ def generate_rubrics_from_json(qp_json_str):
             by_norm[snorm] = picked
 
     final_rubrics = []
+    pending_criteria_items = []
     for s in segments:
         sid = str(s.get("id", "")).strip()
         if not sid:
@@ -244,10 +309,37 @@ def generate_rubrics_from_json(qp_json_str):
             }
         out = {"id": sid, "rubric": str(hit.get("rubric", "")).strip()}
         criteria = _normalize_criteria(hit.get("criteria"), s.get("marks"))
-        if not criteria:
-            criteria = _call_criteria_for_question(s, out["rubric"])
+        rt = out["rubric"]
+        pending = "rubric pending" in rt.lower()
         if criteria:
             out["criteria"] = criteria
+        elif (
+            not pending
+            and rt
+            and _to_number(s.get("marks")) > 0
+            and "rubric will be generated" not in rt.lower()
+        ):
+            pending_criteria_items.append(
+                {
+                    "id": sid,
+                    "questionText": str(s.get("text") or "").strip(),
+                    "rubricText": rt,
+                    "marks": _to_number(s.get("marks")),
+                }
+            )
         final_rubrics.append(out)
+
+    if pending_criteria_items:
+        crit_map = generate_criteria_for_questions_batch(pending_criteria_items)
+        for out in final_rubrics:
+            sid = str(out.get("id", "")).strip()
+            rows = crit_map.get(sid)
+            if rows is None:
+                for k, v in crit_map.items():
+                    if _normalize_id(k) == _normalize_id(sid):
+                        rows = v
+                        break
+            if rows:
+                out["criteria"] = rows
 
     return json.dumps({"rubrics": final_rubrics}, ensure_ascii=False)
