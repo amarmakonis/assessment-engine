@@ -24,6 +24,8 @@ RULES:
 5. For case_study / situational problems:
    - Put the scenario in case_text on the PARENT question (type case_study).
    - Each sub-question MUST have id, text, marks. Sub-question ids MUST be compound: if the parent case is id "1", use "1.a", "1.b"; if parent is "2", use "2.a", "2.b", "2.c". Never use bare "a" or "b" alone as id.
+5b. ONE essay with one mark total (e.g. "[10 Marks]" on the question line only):
+   - If the stem says things like "In your answer, examine X … determine Y … support with case law" as ONE graded response, keep it as a SINGLE question with that full text (and case_text if any). Put the total marks only on that parent. Do NOT split those sentences into separate sub_questions (no 7a/7b-style fragments). Use sub_questions only when the paper prints distinct lettered parts with their own marks or clearly separate questions.
 6. For ordinary questions, use ids as printed (1, 2, 3 or 1.(a) style — normalize consistently).
 7. Extract options (MCQ), sub_questions, case_text as above.
 8. total_marks in metadata: use the number from the paper when stated; otherwise null.

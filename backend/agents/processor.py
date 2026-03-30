@@ -111,7 +111,10 @@ def assign_marks(section):
             # Sub-questions: keep explicit marks; only split parent marks for missing children.
             if q.get("sub_questions"):
                 sub_qs = q["sub_questions"]
-                if any(sq.get("marks") is None for sq in sub_qs):
+                need_split = any(sq.get("marks") is None for sq in sub_qs) or all(
+                    sq.get("marks") in (None, 0) for sq in sub_qs
+                )
+                if need_split:
                     pm = q.get("marks")
                     if pm is not None and len(sub_qs) > 0:
                         try:
@@ -121,7 +124,7 @@ def assign_marks(section):
                         if sub_marks is not None:
                             sm = int(sub_marks) if sub_marks == int(sub_marks) else sub_marks
                             for sq in sub_qs:
-                                if sq.get("marks") is None:
+                                if sq.get("marks") is None or sq.get("marks") == 0:
                                     sq["marks"] = sm
 
         section["derived_marks_per_question"] = marks_per_q
@@ -131,7 +134,7 @@ def assign_marks(section):
     for q in section.get("questions", []):
         if q.get("sub_questions"):
             sub_qs = q["sub_questions"]
-            if all(sq.get("marks") is None for sq in sub_qs):
+            if all(sq.get("marks") in (None, 0) for sq in sub_qs):
                 pm = q.get("marks")
                 if pm is not None and len(sub_qs) > 0:
                     try:
@@ -141,7 +144,8 @@ def assign_marks(section):
                     if sub_marks is not None:
                         sm = int(sub_marks) if sub_marks == int(sub_marks) else sub_marks
                         for sq in sub_qs:
-                            sq["marks"] = sm
+                            if sq.get("marks") is None or sq.get("marks") == 0:
+                                sq["marks"] = sm
 
     return section
 
@@ -213,6 +217,72 @@ def _sub_suffix(parent_id, sub_id):
     return parts[-1] if parts else s
 
 
+def _sub_question_line_has_own_marks(text):
+    return bool(
+        re.search(r"\[\s*\d+(?:\.\d+)?\s*Marks?\s*\]", str(text or ""), re.I)
+        or re.search(r"\(\s*\d+(?:\.\d+)?\s*marks?\s*\)", str(text or ""), re.I)
+    )
+
+
+def _should_collapse_instruction_subs(parent_q, sub_qs):
+    """
+    LLMs often split one long-essay prompt ("In your answer, examine… and determine…")
+    into many sub_questions without per-part marks. Collapse back to one segment with the parent's total marks.
+    """
+    if not sub_qs or len(sub_qs) < 2:
+        return False
+    try:
+        pm = float(parent_q.get("marks")) if parent_q.get("marks") is not None else 0
+    except (TypeError, ValueError):
+        pm = 0
+    if pm <= 0:
+        return False
+    p_full = f"{parent_q.get('case_text') or ''}\n{parent_q.get('text') or ''}".strip()
+    if not p_full:
+        return False
+    # Trigger when the stem reads like one multi-task essay, not separate exam items with their own marks.
+    bridge = re.search(
+        r"\bin your answer\b",
+        p_full,
+        re.I | re.DOTALL,
+    ) or re.search(
+        r"\b(discuss|examine|determine|assess)\b.*\b(discuss|examine|determine|assess|support)\b",
+        p_full,
+        re.I | re.DOTALL,
+    )
+    if not bridge:
+        return False
+    for sq in sub_qs:
+        st = str(sq.get("text") or "")
+        if len(st) > 450:
+            return False
+        if _sub_question_line_has_own_marks(st):
+            return False
+    return True
+
+
+def _merge_collapsed_essay_text(parent_q, sub_qs):
+    parts = []
+    ct = str(parent_q.get("case_text") or "").strip()
+    if ct:
+        parts.append(ct)
+    pt = str(parent_q.get("text") or "").strip()
+    chunks = [str(sq.get("text") or "").strip() for sq in sub_qs if str(sq.get("text") or "").strip()]
+    combined_subs = "\n\n".join(chunks)
+    if pt:
+        low_sub = combined_subs.lower()
+        low_pt = pt.lower()
+        if low_pt in low_sub or (combined_subs and low_sub in low_pt):
+            parts.append(pt if len(pt) >= len(combined_subs) else combined_subs)
+        else:
+            parts.append(pt)
+            if combined_subs:
+                parts.append(combined_subs)
+    elif combined_subs:
+        parts.append(combined_subs)
+    return "\n\n".join(parts)
+
+
 def _is_fake_single_subquestion(parent_q, sub_q):
     """
     Collapse synthetic one-child splits often produced by OCR/LLM:
@@ -253,6 +323,17 @@ def flatten_segments(data):
                             "context": q.get("case_text"),
                         })
                         continue
+                if _should_collapse_instruction_subs(q, q["sub_questions"]):
+                    leaf_id = _flat_main_id(q.get("id")) if paper_type == "flat_compulsory" else global_segment_id(section_id, q.get("id"))
+                    segments.append({
+                        "id": leaf_id,
+                        "text": _merge_collapsed_essay_text(q, q["sub_questions"]),
+                        "marks": q.get("marks"),
+                        "section": section_id,
+                        "type": q.get("type") or "long_answer",
+                        "context": q.get("case_text"),
+                    })
+                    continue
                 for sq in q["sub_questions"]:
                     if paper_type == "flat_compulsory":
                         sid = _flat_main_id(q.get("id"))
