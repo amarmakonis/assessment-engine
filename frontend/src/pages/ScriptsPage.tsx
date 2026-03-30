@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FileText,
   Eye,
@@ -29,6 +29,8 @@ import { formatDistanceToNow } from "date-fns";
 
 const TERMINAL_STATUSES = new Set(["EVALUATED", "COMPLETE", "FAILED", "FLAGGED", "IN_REVIEW"]);
 
+type ScriptsLocationState = { fromUpload?: boolean; uploadedScriptIds?: string[] };
+
 /** Human-readable stage for re-evaluation banner */
 function getStageLabel(status: string): string {
   const map: Record<string, string> = {
@@ -56,6 +58,8 @@ function getDisplayTimestamp(script: UploadedScript): string {
 }
 
 export function ScriptsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const reEvaluatedId = searchParams.get("re-evaluated");
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -67,13 +71,17 @@ export function ScriptsPage() {
   const [stopScriptId, setStopScriptId] = useState<string | null>(null);
   const [deleteUploadId, setDeleteUploadId] = useState<string | null>(null);
   const perPage = 20;
+  /** Ignore stale list responses when upload-burst and initial load overlap (slow empty fetch must not overwrite newer data). */
+  const listFetchSeq = useRef(0);
 
   const loadData = useCallback(
     async (silent = false) => {
+      const seq = ++listFetchSeq.current;
       if (!silent) setLoading(true);
       else setRefreshing(true);
       try {
         const { data } = await uploadAPI.list({ page, perPage });
+        if (seq !== listFetchSeq.current) return;
         setScripts(data.items);
         setTotal(data.total);
       } catch {
@@ -90,15 +98,79 @@ export function ScriptsPage() {
     loadData();
   }, [loadData]);
 
-  // Auto-refresh when any script is in progress (or when we're tracking a re-evaluation)
+  // After upload we navigate here immediately; the list can briefly lag the API. Without rows yet,
+  // there is no "in progress" script so the poll below never starts—refetch until the new row appears.
   useEffect(() => {
-    const hasProcessing = scripts.some((s) => !TERMINAL_STATUSES.has(s.uploadStatus));
-    const trackingReEval = !!reEvaluatedId;
-    if (!hasProcessing && !trackingReEval) return;
-    const intervalMs = 10000;
+    const state = location.state as ScriptsLocationState | null;
+    if (!state?.fromUpload) return;
+
+    const idSet = new Set((state.uploadedScriptIds ?? []).filter(Boolean));
+    let baselineIds: Set<string> | null = null;
+    const listReady = (items: UploadedScript[]) => {
+      if (items.length === 0) return false;
+      if (idSet.size > 0) return items.some((s) => idSet.has(s.id));
+      if (!baselineIds) return false;
+      return items.some((s) => !baselineIds!.has(s.id));
+    };
+
+    let cancelled = false;
+
+    (async () => {
+      for (let attempt = 0; attempt < 25 && !cancelled; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 350));
+        try {
+          const seq = ++listFetchSeq.current;
+          const { data } = await uploadAPI.list({ page, perPage });
+          if (cancelled) return;
+          if (seq !== listFetchSeq.current) continue;
+          if (baselineIds === null) {
+            baselineIds = new Set(data.items.map((s) => s.id));
+          }
+          setScripts(data.items);
+          setTotal(data.total);
+          if (listReady(data.items)) break;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!cancelled) {
+        navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.state, location.pathname, location.search, navigate, page, perPage]);
+
+  const needsPipelinePoll = useMemo(
+    () =>
+      scripts.some((s) => !TERMINAL_STATUSES.has(s.uploadStatus)) || !!reEvaluatedId,
+    [scripts, reEvaluatedId]
+  );
+
+  // Auto-refresh while any script is in the pipeline (and when tracking a re-evaluation).
+  // `needsPipelinePoll` is a boolean so we do not reset the interval on every status tick (would thrash the API).
+  useEffect(() => {
+    if (!needsPipelinePoll) return;
+
+    void loadData(true);
+    const intervalMs = 2500;
     const interval = setInterval(() => loadData(true), intervalMs);
     return () => clearInterval(interval);
-  }, [scripts, loadData, reEvaluatedId]);
+  }, [needsPipelinePoll, loadData]);
+
+  // When the tab becomes visible again, catch up on pipeline status without a manual Refresh
+  useEffect(() => {
+    if (!needsPipelinePoll) return;
+
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadData(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [needsPipelinePoll, loadData]);
 
   // Scroll re-evaluated script into view when it appears
   useEffect(() => {

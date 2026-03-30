@@ -85,6 +85,9 @@ export function ExamPage() {
   const examsRef = useRef<ExamItem[]>([]);
   /** Previous list snapshot for detecting PROCESSING → COMPLETED without nested setState. */
   const examsListSnapshotRef = useRef<ExamItem[]>([]);
+  /** Avoid overlapping GET /exams/ when mount + actions fire close together. */
+  const examsListInFlightRef = useRef<Promise<void> | null>(null);
+  const processingStatusInFlightRef = useRef<Promise<void> | null>(null);
   const [examToDelete, setExamToDelete] = useState<string | null>(null);
   const [addQuestionExamId, setAddQuestionExamId] = useState<string | null>(null);
   const [addQuestionLabel, setAddQuestionLabel] = useState("");
@@ -107,30 +110,92 @@ export function ExamPage() {
   ]);
 
   const loadExams = useCallback(async () => {
-    try {
-      const { data } = await examAPI.list();
-      const nextItems = data.items;
-      const prev = examsListSnapshotRef.current;
-      const invalidateDetail: string[] = [];
-      for (const e of nextItems) {
-        const old = prev.find((p) => p.id === e.id);
-        if (old?.status === "PROCESSING" && e.status !== "PROCESSING") {
-          invalidateDetail.push(e.id);
+    if (examsListInFlightRef.current) {
+      return examsListInFlightRef.current;
+    }
+    const run = (async () => {
+      try {
+        const { data } = await examAPI.list();
+        const nextItems = data.items;
+        const prev = examsListSnapshotRef.current;
+        const invalidateDetail: string[] = [];
+        for (const e of nextItems) {
+          const old = prev.find((p) => p.id === e.id);
+          if (old?.status === "PROCESSING" && e.status !== "PROCESSING") {
+            invalidateDetail.push(e.id);
+          }
         }
+        examsListSnapshotRef.current = nextItems;
+        if (invalidateDetail.length) {
+          setExamQuestionsDetail((detail) => {
+            const next = { ...detail };
+            for (const id of invalidateDetail) delete next[id];
+            return next;
+          });
+        }
+        setExams(nextItems);
+      } catch {
+        toast.error("Failed to load exams");
+      } finally {
+        setLoading(false);
       }
-      examsListSnapshotRef.current = nextItems;
-      if (invalidateDetail.length) {
-        setExamQuestionsDetail((detail) => {
-          const next = { ...detail };
-          for (const id of invalidateDetail) delete next[id];
+    })();
+    examsListInFlightRef.current = run;
+    try {
+      await run;
+    } finally {
+      examsListInFlightRef.current = null;
+    }
+  }, []);
+
+  const refreshProcessingStatuses = useCallback(async () => {
+    const ids = examsRef.current.filter((e) => e.status === "PROCESSING").map((e) => e.id);
+    if (!ids.length) return;
+    if (processingStatusInFlightRef.current) {
+      return processingStatusInFlightRef.current;
+    }
+    const run = (async () => {
+      try {
+        const { data } = await examAPI.list({ ids: ids.join(",") });
+        const byId = new Map(data.items.map((i) => [i.id, i]));
+        setExams((prev) => {
+          const invalidateDetail: string[] = [];
+          const next = prev.map((e) => {
+            const u = byId.get(e.id);
+            if (!u) return e;
+            if (e.status === "PROCESSING" && u.status && u.status !== "PROCESSING") {
+              invalidateDetail.push(e.id);
+            }
+            return {
+              ...e,
+              status: u.status ?? e.status,
+              totalMarks: u.totalMarks ?? e.totalMarks,
+              displayQuestionCount: u.displayQuestionCount ?? e.displayQuestionCount,
+              leafSegmentCount: u.leafSegmentCount ?? e.leafSegmentCount,
+              title: u.title ?? e.title,
+              subject: u.subject ?? e.subject,
+              createdAt: u.createdAt ?? e.createdAt,
+            };
+          });
+          examsListSnapshotRef.current = next;
+          if (invalidateDetail.length) {
+            setExamQuestionsDetail((detail) => {
+              const nextD = { ...detail };
+              for (const id of invalidateDetail) delete nextD[id];
+              return nextD;
+            });
+          }
           return next;
         });
+      } catch {
+        /* keep last known state */
       }
-      setExams(nextItems);
-    } catch {
-      toast.error("Failed to load exams");
+    })();
+    processingStatusInFlightRef.current = run;
+    try {
+      await run;
     } finally {
-      setLoading(false);
+      processingStatusInFlightRef.current = null;
     }
   }, []);
 
@@ -182,13 +247,19 @@ export function ExamPage() {
     loadExams();
   }, [loadExams]);
 
-  // Auto-refresh when any exam is processing
+  // While exams are PROCESSING: one GET /exams/?ids=... per tick (same exams resource as list).
+  const processingIdsKey = exams
+    .filter((e) => e.status === "PROCESSING")
+    .map((e) => e.id)
+    .sort()
+    .join(",");
+
   useEffect(() => {
-    const hasProcessing = exams.some((e) => e.status === "PROCESSING");
-    if (!hasProcessing) return;
-    const interval = setInterval(() => loadExams(), 5000);
+    if (!processingIdsKey) return;
+    void refreshProcessingStatuses();
+    const interval = setInterval(() => void refreshProcessingStatuses(), 8000);
     return () => clearInterval(interval);
-  }, [exams, loadExams]);
+  }, [processingIdsKey, refreshProcessingStatuses]);
 
   function addQuestion() {
     setQuestions([...questions, { questionText: "", maxMarks: 10, rubric: [{ description: "", maxMarks: 10 }] }]);
@@ -333,10 +404,27 @@ export function ExamPage() {
       if (title.trim()) formData.append("title", title.trim());
       if (subject.trim()) formData.append("subject", subject.trim());
 
-      await examAPI.upload(formData);
+      const { data } = await examAPI.upload(formData);
       toast.success("Question paper upload started! Processing in background...");
-      // navigate("/batch-jobs"); // No longer redirecting to batch jobs for single paper
-      loadExams();
+      const examId = data.examId;
+      if (examId) {
+        const displayTitle =
+          title.trim() || questionFile.name.replace(/\.[^/.]+$/, "") || "New exam";
+        setExams((prev) => [
+          {
+            id: examId,
+            title: displayTitle,
+            subject: subject.trim() || "General",
+            status: "PROCESSING",
+            totalMarks: 0,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev.filter((e) => e.id !== examId),
+        ]);
+        setExpandedExam(examId);
+      } else {
+        loadExams();
+      }
       resetForm();
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || "Failed to start exam processing";

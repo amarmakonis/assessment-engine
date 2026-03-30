@@ -1541,11 +1541,29 @@ def dashboard_review_queue():
 @app.route("/api/v1/exams/", methods=["GET"])
 @jwt_required
 def list_exams():
-    exams = list(
-        get_collection("exams")
-        .find({"institutionId": get_current_institution_id()})
-        .sort("createdAt", -1)
-    )
+    """
+    List exams for the institution.
+    Optional query: ids=comma,separated,ObjectIds — return only those rows (same shape as list items).
+    Used for a single refresh round-trip while exams are PROCESSING.
+    """
+    institution_id = get_current_institution_id()
+    query = {"institutionId": institution_id}
+    ids_param = (request.args.get("ids") or "").strip()
+    if ids_param:
+        oid_list = []
+        for part in ids_param.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                oid_list.append(ObjectId(part))
+            except Exception:
+                continue
+        oid_list = oid_list[:40]
+        if not oid_list:
+            return jsonify({"items": [], "total": 0})
+        query["_id"] = {"$in": oid_list}
+    exams = list(get_collection("exams").find(query).sort("createdAt", -1))
     items = [_exam_list_item(exam) for exam in exams]
     return jsonify({"items": items, "total": len(items)})
 
@@ -1989,7 +2007,7 @@ def _store_uploaded_script(exam, filename, mime_type, file_size, student_name, s
         "examId": str(exam["_id"]),
         "uploadBatchId": str(uuid.uuid4()),
         "studentMeta": {"name": student_name or "Unknown Student", "rollNo": student_roll or ""},
-        "originalFilename": filename,
+        "originalFilename": _normalize_upload_filename(filename),
         "mimeType": mime_type,
         "fileSizeBytes": file_size,
         "pageCount": None,
@@ -2024,6 +2042,46 @@ def _store_uploaded_script(exam, filename, mime_type, file_size, student_name, s
     return script_doc
 
 
+def _normalize_upload_filename(filename):
+    if not filename:
+        return ""
+    base = os.path.basename(str(filename)).strip()
+    return base or str(filename).strip()
+
+
+def _find_blocking_duplicate_upload(institution_id, exam_id, filename):
+    """
+    Latest row for this exam + filename. Allow a new upload only if the last one ended in
+    FAILED or FLAGGED (retry). Blocks in-flight and successful copies so API keys are not
+    spent on accidental re-uploads.
+    """
+    base = _normalize_upload_filename(filename)
+    if not base:
+        return None
+    raw = (filename or "").strip()
+    or_clauses = [{"originalFilename": base}]
+    if raw and raw != base:
+        or_clauses.append({"originalFilename": raw})
+    esc = re.escape(base)
+
+    coll = get_collection("uploaded_scripts")
+    doc = coll.find_one(
+        {
+            "institutionId": institution_id,
+            "examId": str(exam_id),
+            "$or": or_clauses
+            + [{"originalFilename": {"$regex": rf"(?:^|[\\/]){esc}$", "$options": "i"}}],
+        },
+        sort=[("createdAt", -1)],
+    )
+    if not doc:
+        return None
+    st = doc.get("uploadStatus") or ""
+    if st in ("FAILED", "FLAGGED"):
+        return None
+    return doc
+
+
 def _create_pending_uploaded_script(exam, filename, mime_type, file_size, student_name, student_roll, institution_id=None, created_by=None):
     now = _now()
     
@@ -2037,7 +2095,7 @@ def _create_pending_uploaded_script(exam, filename, mime_type, file_size, studen
         "examId": str(exam["_id"]),
         "uploadBatchId": str(uuid.uuid4()),
         "studentMeta": {"name": student_name or "Unknown Student", "rollNo": student_roll or ""},
-        "originalFilename": filename,
+        "originalFilename": _normalize_upload_filename(filename),
         "mimeType": mime_type,
         "fileSizeBytes": file_size,
         "pageCount": None,
@@ -2146,6 +2204,7 @@ def _process_uploaded_script(uploaded_script_id, exam, raw_bytes, mime_type, fil
 
 def _run_single_script_processing(raw_bytes, filename, exam_id, institution_id, created_by, student_name=None, student_roll=None):
     with app.app_context():
+        filename = _normalize_upload_filename(filename)
         # Fetch exam first to ensure it exists
         exam = get_collection("exams").find_one({"_id": ObjectId(exam_id)})
         if not exam:
@@ -2187,24 +2246,67 @@ def upload_scripts():
     if not files:
         return jsonify({"error": {"message": "At least one file is required"}}), 400
 
+    force_duplicate = request.form.get("forceDuplicate") in ("1", "true", "yes")
+
     try:
-        job_id = BatchManager.create_job("SCRIPT_BATCH", institution_id, created_by, total_files=len(files))
-        
+        file_payloads = []
         for file_storage in files:
-            process_script_task.delay(
-                job_id, 
-                file_storage.read(), 
-                file_storage.filename, 
-                exam_id, 
-                institution_id, 
-                created_by
+            raw = file_storage.read()
+            norm = _normalize_upload_filename(file_storage.filename)
+            file_payloads.append({"raw": raw, "filename": norm or (file_storage.filename or "upload")})
+
+        results = []
+        to_queue = []
+        for item in file_payloads:
+            fn = item["filename"]
+            if not force_duplicate:
+                dup = _find_blocking_duplicate_upload(institution_id, exam_id, fn)
+                if dup:
+                    results.append(
+                        {
+                            "filename": fn,
+                            "status": "SKIPPED_DUPLICATE",
+                            "uploadedScriptId": str(dup["_id"]),
+                            "reason": (
+                                "This file is already uploaded for this exam. Open Scripts to view it, "
+                                "or delete that upload before uploading again."
+                            ),
+                        }
+                    )
+                    continue
+            to_queue.append(item)
+            results.append({"filename": fn, "status": "QUEUED"})
+
+        if not to_queue:
+            return jsonify(
+                {
+                    "jobId": None,
+                    "status": "ALL_DUPLICATES",
+                    "message": "No new uploads — each file already exists for this exam (not failed).",
+                    "results": results,
+                }
             )
 
-        return jsonify({
-            "jobId": job_id, 
-            "status": "PENDING", 
-            "message": "Script processing started in background"
-        })
+        job_id = BatchManager.create_job("SCRIPT_BATCH", institution_id, created_by, total_files=len(to_queue))
+
+        for item in to_queue:
+            process_script_task.delay(
+                job_id,
+                item["raw"],
+                item["filename"],
+                exam_id,
+                institution_id,
+                created_by,
+            )
+
+        return jsonify(
+            {
+                "jobId": job_id,
+                "status": "PENDING",
+                "message": f"Script processing started for {len(to_queue)} file(s)",
+                "results": results,
+            }
+        )
     except Exception as exc:
         traceback.print_exc()
         return jsonify({"error": {"message": str(exc)}}), 500

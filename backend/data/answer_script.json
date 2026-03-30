@@ -1,109 +1,39 @@
 {
   "segments": [
     {
-      "id": "1",
-      "section": null,
-      "text": "Conflict of Laws (also called Private International Law) refers to the body of rules and principles that determine which country's law applies when a legal dispute involves parties or events connected to more than one legal system. It deals with questions of jurisdiction, applicable law, and recognition of foreign judgments."
-    },
-    {
-      "id": "2",
-      "section": null,
-      "text": "A foreign judgment is a judgment or order delivered by the court of a foreign country. Under Section 13 of the Civil Procedure Code, 1908, a foreign judgment is conclusive as to any matter directly adjudicated upon between the same parties, subject to certain exceptions such as lack of jurisdiction, fraud, or violation of natural justice."
-    },
-    {
-      "id": "3",
-      "section": null,
-      "text": "In conflict of laws, remedies for breach of contract are governed by the lex fori (law of the forum). The available remedies include: damages (compensatory or liquidated), specific performance, rescission of contract, injunction, and restitution. The substantive right to a remedy is governed by the applicable law of the contract, while the mode of enforcement is governed by the lex fori."
-    },
-    {
-      "id": "4",
-      "section": null,
-      "text": "Domicile of dependency arises when a person's domicile is determined not by their own choice but by operation of law due to their legal status. Under traditional rules, a married woman's domicile was dependent on her husband's domicile, and a minor's domicile was dependent on the father's domicile. In India, the Hindu Minority and Guardianship Act and subsequent reforms have modified these rules."
-    },
-    {
-      "id": "5",
-      "section": null,
-      "text": "A testamentary guardian is a person appointed as guardian of a minor by the will of the minor's deceased parent. Under Section 9 of the Hindu Minority and Guardianship Act, 1956, a father may appoint a testamentary guardian for his minor legitimate children by will. Such appointment takes effect after the death of the natural guardian."
-    },
-    {
       "id": "6",
       "section": null,
-      "text": "Muta marriage is a temporary marriage recognized under Shia Muslim law. It is a marriage contracted for a specified period of time upon payment of dower (mehr). The marriage automatically dissolves upon expiry of the term. It is not recognized under Sunni law and is valid only among Shia Muslims. Children born of such a marriage are legitimate."
+      "text": "Put inat-law is also known as conflict of laws because it deals with situations where more than one legal system may apply to any dispute which involves foreign elements.\n\nWhere there is foreign elements are these the court should determine those things - which country's law should apply which court has jurisdiction whether foreign judgementation should be recognized.\n\nThus there is often a conflict of laws of different countries & put inat-law provides rules to resolve the conflict.\n\n|  Difference between public & private  |\n| --- |\n|  Put inat-law public inat-law  |\n|  Governus dispute which involves foreign elements Governmental  |\n|  Private individuals State inat-law  |\n|  Part of domestic law Bedy of inat-  |\n|  of each country Bydg of inat-  |\n\nAn Indian citizen marries a British citizen in London. Later dispute across regarding divorce in India. The court must determine which countries law will grow that so Lex Loci declaration will be there.\n\nPublic Int -\nTreaty bto two nations regulating river water sharing is governed by the Public In law."
     },
     {
       "id": "7",
       "section": null,
-      "text": "Khula is a form of divorce under Muslim law where the wife seeks separation from her husband by returning the dower (mehr) or some other consideration to him. It is a divorce at the instance of the wife, with her husband's consent, in exchange for compensation. It is recognized under both Sunni and Shia law and is sometimes described as a mutual dissolution of the marriage."
+      "text": "Issues - Whether the marriage bto Aditi & Lucas is valid under private let. law & recognized in India or not?\nEssential validity of marriage -\nIt is generally governed by the law of dominee of the parties.\nIt is also concerned with\nAge\nConsent\nCapacity to marry\nProhibited relation ships -\nAditi domicile - India\nAditi has satisfied mir age requirement under Indian law which is 18 years & she does not parent's approval as parent consent is not mandatory under Indian law.\nIndian courts generally recognize foreign marriages unless they violate Indian public policy.\n\nTherefore, Aditi's family challenge to marriage is unlikely to succeed in Indian court."
     },
     {
-      "id": "8",
+      "id": "1.(b)",
       "section": null,
-      "text": "Private International Law (also called Conflict of Laws) is the branch of law that deals with civil disputes involving a foreign element — such as foreign parties, transactions, or events occurring abroad. It determines: (i) which court has jurisdiction, (ii) which country's law governs the dispute, and (iii) whether a foreign judgment will be recognized and enforced."
+      "text": "Resolution of disputes involving individuals across different legal jurisdictions."
     },
     {
-      "id": "9",
+      "id": "2.(b)",
       "section": null,
-      "text": "An action in personam is a legal proceeding directed against a specific person, seeking to impose personal liability on that person. It is contrasted with action in rem which is directed against property. Examples include: a suit for recovery of debt against a debtor, a claim for breach of contract against a specific party, and a divorce petition against a named respondent. Jurisdiction in personam requires the defendant to be present or submitting to the court's jurisdiction."
+      "text": "Public international law is codified in treaties & conventions while private intercoation law is entirely unwritten."
     },
     {
-      "id": "10",
+      "id": "3.(b)",
       "section": null,
-      "text": "Under Muslim law, divorce can be classified as follows:\n\n- Talaq: Unilateral divorce by the husband. Can be Talaq-ul-Sunnat (revocable) or Talaq-ul-Biddat (Triple Talaq — now void in India after the Muslim Women (Protection of Rights on Marriage) Act, 2019).\n- Khula: Divorce at the wife's instance with the husband's consent, in exchange for consideration.\n- Mubarat: Mutual dissolution of marriage by agreement of both parties.\n- Ila: Husband's oath of abstinence for four months, after which the marriage dissolves.\n- Zihar: Husband comparing wife to a prohibited relation; can be revoked by expiation.\n- Faskh (Judicial Divorce): Divorce granted by a court under the Dissolution of Muslim Marriages Act, 1939, on grounds such as cruelty, desertion, or failure to maintain.\n- Lian: Divorce on grounds of mutual imprecation when the husband accuses the wife of adultery."
+      "text": "The voluntary recognition of foreign laws out of mutual respect & convenience"
     },
     {
-      "id": "2.1",
+      "id": "4.(a)",
       "section": null,
-      "text": "Jurisdiction refers to the legal authority of a court to hear and decide a matter. In the context of Conflict of Laws, jurisdiction is classified as follows:\n\n(a) Territorial Jurisdiction:\nA court exercises jurisdiction over persons, property, or events within its territorial limits. The presence of the defendant within the territory is the traditional basis for asserting jurisdiction.\n\n(b) Personal Jurisdiction (in personam):\nBased on the personal presence or submission of the defendant to the court's authority. A court has jurisdiction in personam if the defendant is present in the forum, voluntarily submits, or is domiciled there.\n\n(c) Jurisdiction in Rem:\nJurisdiction over a specific thing (property) located within the territory. The judgment binds the whole world regarding the status of that property — e.g., probate of a will, declaration of title to immovable property.\n\n(d) Jurisdiction in Quasi-rem:\nA proceeding brought against a person but founded on the presence of their property in the jurisdiction, to the extent of the value of that property. It is a hybrid between in personam and in rem.\n\n(e) Subject-matter Jurisdiction:\nAuthority to hear a particular type of legal dispute. For example, family courts have jurisdiction over matrimonial matters, while commercial courts deal with commercial disputes.\n\n(f) Exclusive and Concurrent Jurisdiction:\nExclusive jurisdiction means only one specified court can hear the matter. Concurrent jurisdiction means more than one court may have authority over the same matter, and the plaintiff may choose among them.\n\nIn Private International Law, a court must first satisfy itself that it has proper jurisdiction before proceeding to determine the applicable law and adjudicate the dispute."
+      "text": "The law of the place where the marriage is celebrated (lex loci celebration)"
     },
     {
-      "id": "2.4",
+      "id": "5.(a)",
       "section": null,
-      "text": "The Rome Convention on the Law Applicable to Contractual Obligations (1980) is a landmark instrument of Private International Law that harmonizes the rules for choice of law in contract disputes among European Union member states. It was later superseded by Rome I Regulation (EC 593/2008) which made it binding EU law.\n\nKey Principles of the Rome Convention:\n\n1. Freedom of Choice (Article 3):\nThe parties to a contract are free to choose the law governing their contract. The choice may be express or implied from the terms of the contract or the circumstances. The parties may choose different laws for different parts of the contract (dépeçage).\n\n2. Applicable Law in Absence of Choice (Article 4):\nWhere no choice is made, the contract is governed by the law of the country most closely connected to the contract. There is a rebuttable presumption that the contract is most closely connected to the country where the characteristic performer (typically the party who is to render the non-monetary performance) is habitually resident or has its central administration.\n\n3. Consumer and Employment Contracts:\nSpecial protective rules apply to consumer contracts and individual employment contracts, ensuring that the weaker party is not deprived of the protection of mandatory rules of their habitual residence.\n\n4. Mandatory Rules:\nEven where parties have chosen a governing law, the mandatory rules of the forum (or of a closely connected country) cannot be displaced. These are rules that apply irrespective of the chosen law.\n\n5. Public Policy:\nA court may refuse to apply a chosen foreign law if its application would be manifestly contrary to the public policy of the forum state.\n\nThe Rome Convention represented a major step toward certainty and uniformity in cross-border contractual disputes within Europe, and its principles have influenced conflict of laws jurisprudence globally."
-    },
-    {
-      "id": "3.1.(a)",
-      "section": null,
-      "text": "No, the English Court will generally NOT give effect to the French nullity decree. The English court would regard the marriage as valid because: (i) it was celebrated in England in compliance with English formalities, (ii) the question of parental consent was treated as a formality governed by the lex loci celebrationis (English law), and the requirements of English law were met; (iii) the French court's view that parental consent was an essential condition (matter of capacity) was not recognized by English private international law, which held the matter to be one of formality.\n\nThe English court would hold that the marriage was valid under English law and would refuse to recognize the French decree of nullity as it conflicted with the English characterization of the issue."
-    },
-    {
-      "id": "3.1.(b)",
-      "section": null,
-      "text": "Case: Ogden v. Ogden [1908] P 46 (Court of Appeal, England)\n\nThe English Court of Appeal held that parental consent under French law was a matter of personal capacity, but since the marriage was celebrated in England and complied with English law, the English court did not give effect to the French nullity decree. The marriage was treated as valid in England."
-    },
-    {
-      "id": "3.2.(a)",
-      "section": null,
-      "text": "The double actionability rule (also called the rule in Phillips v. Eyre) is a common law rule for choice of law in tort. It provides that in order for a foreign tort to be actionable in England, two conditions must be satisfied:\n\n- First condition: The act must be actionable as a tort under English law (lex fori) — i.e., if it had been committed in England, it would have been tortious.\n- Second condition: The act must also be civilly actionable (not necessarily a tort, but giving rise to civil liability) under the law of the place where it was committed (lex loci delicti).\n\nIf either condition is not satisfied, the tort cannot be pursued in the English courts under this rule."
-    },
-    {
-      "id": "3.2.(b)",
-      "section": null,
-      "text": "No. The English Court did NOT hold the English ship owners liable under the double actionability principle. The first condition was satisfied — the negligence of the servants would have been actionable in England as the tort of negligence. However, the second condition was NOT satisfied — under Spanish law (the lex loci delicti), ship owners were not liable for the negligence of their servants navigating the ship. Since the act was not civilly actionable under Spanish law, the double actionability rule was not met and the claim failed."
-    },
-    {
-      "id": "3.2.(c)",
-      "section": null,
-      "text": "Case: The Halley (1868) LR 2 PC 193 (Privy Council)\n\nThe Privy Council applied the double actionability rule and held that since the ship owners were not liable under Spanish law (lex loci delicti), the English court could not impose liability upon them. The claim was dismissed."
-    },
-    {
-      "id": "3.3.(a)",
-      "section": null,
-      "text": "The court held that the clause in the bill of lading choosing English law as the governing law of the contract was valid and enforceable. The parties to a commercial contract have the freedom to choose the applicable law (principle of party autonomy), and the choice of English law was given effect to even though the ship, the voyage, and the parties had no direct connection to England.\n\nThe court applied the chosen law (English law) to determine the rights and liabilities of the parties under the contract of carriage. The governing law clause was treated as conclusive of the parties' intention, and the court saw no compelling reason of public policy to displace the chosen law."
-    },
-    {
-      "id": "3.3.(b)",
-      "section": null,
-      "text": "Case: Vita Food Products Inc. v. Unus Shipping Co. Ltd. [1939] AC 277 (Privy Council)\n\nThe Privy Council held that the express choice of English law in the bill of lading was valid, even though the contract had no other connection to England. The principle of party autonomy in choice of law for contracts was affirmed. However, the court noted that the choice must be bona fide, legal, and not contrary to public policy."
-    },
-    {
-      "id": "4.1",
-      "section": null,
-      "text": "Introduction:\nDomicile is one of the most fundamental connecting factors in Private International Law. It refers to the legal relationship between a person and a legal system which governs their personal status, family law matters, and succession. A person is subject to the law of their domicile in matters such as capacity to contract, marriage, divorce, and testate and intestate succession.\n\nDefinition:\nEvery person must at all times have a domicile, and no person can have more than one domicile at a time for the same purpose. Domicile is the country a person treats as their permanent home or to which they intend to return. It is distinct from nationality (political allegiance) and residence (mere physical presence).\n\nKinds of Domicile:\n\n1. Domicile of Origin:\nThis is the domicile assigned at birth. A legitimate child takes the domicile of its father at the time of birth. An illegitimate child takes the domicile of its mother. The domicile of origin is tenacious — it revives automatically whenever a domicile of choice is abandoned without a new one being acquired. It cannot be extinguished by mere absence.\n\n2. Domicile of Choice:\nA domicile of choice is acquired by an adult person with legal capacity by: (i) residing in a new country (factum), and (ii) intending to reside there permanently or indefinitely (animus manendi). Both elements must coexist. Temporary residence for health or business does not constitute domicile of choice. The intention must be to make the new country one’s permanent home without any present intention of leaving.\n\n3. Domicile of Dependency:\nThis is a domicile that the law assigns to a person who lacks legal capacity to acquire an independent domicile. It follows the domicile of another person:\n- Minor’s domicile: A legitimate minor takes the father’s domicile, an illegitimate minor takes the mother’s domicile. The minor’s domicile changes automatically when the parent’s domicile changes.\n- Married woman’s domicile: Under the traditional common law rule, a married woman’s domicile was dependent on her husband’s domicile. This rule has been abolished in most jurisdictions, including England (under the Domicile and Matrimonial Proceedings Act 1973) and India.\n- Mental incapacity: A person of unsound mind may retain a domicile of dependency.\n\n4. Deemed Domicile (India):\nUnder Indian private international law (particularly the Hindu Marriage Act, 1955 and the Special Marriage Act, 1954), domicile is sometimes treated as equivalent to ordinary residence for purposes of conferring jurisdiction on Indian courts over matrimonial matters.\n\nImportance of Domicile:\nDomicile determines the law applicable to personal status, capacity to marry, matrimonial causes (divorce, nullity), succession to movable property, and legitimacy. It is the primary personal connecting factor in common law systems, unlike civil law systems which prefer nationality."
-    },
-    {
-      "id": "4.3",
-      "section": null,
-      "text": "Introduction:\nMatrimonial causes — including divorce and judicial separation — raise complex questions of jurisdiction and choice of law in Private International Law because they involve the personal status of the parties and may have cross-border implications. A divorce decree granted by one country may not be recognized in another, leading to limping marriages.\n\nJURISDICTION IN DIVORCE:\n\nBases of Jurisdiction:\nCourts in different countries assert jurisdiction to grant divorce on different grounds. The common bases include:\n\n- **Domicile**: The traditional English common law rule is that only the court of the country where the parties are domiciled has jurisdiction to dissolve a marriage. This rule was laid down in Le Mesurier v. Le Mesurier [1895] AC 517.\n\n- **Residence/Habitual Residence**: Many modern jurisdictions, including India and EU states, accept habitual residence as a basis for jurisdiction. Under Section 19 of the Hindu Marriage Act, 1955, Indian courts have jurisdiction if the parties last resided together within the court’s jurisdiction, or if the petitioner is residing there at the time of filing.\n\n- **Nationality**: Some civil law countries assert jurisdiction based on the nationality of the parties.\n\n- **Submission/Presence**: Courts may also assume jurisdiction if the respondent submits to the proceedings.\n\nIndian Position:\nUnder the Hindu Marriage Act, 1955 (Section 19) and the Special Marriage Act, 1954, Indian courts have jurisdiction to entertain a petition for divorce or judicial separation if: (i) the marriage was solemnized within the jurisdiction; (ii) the respondent resides within the jurisdiction; (iii) the parties last resided together within the jurisdiction; or (iv) the petitioner is residing within the jurisdiction at the time of presentation of the petition (in cases of wife petitioner).\n\nCHOICE OF LAW IN DIVORCE:\nThe general rule in English and Indian private international law is that the law of the forum (lex fori) governs divorce proceedings. Courts apply their own domestic law to determine grounds, procedure, and effects of divorce. There is no application of a foreign divorce law by the forum court — the court simply decides whether to grant a divorce under its own law.\n\nThis means that if an Indian court has jurisdiction, it will apply Hindu law or the Special Marriage Act irrespective of where the marriage was celebrated or what the parties' nationality is.\n\nJUDICIAL SEPARATION:\nJudicial separation differs from divorce in that it does not dissolve the marriage but relieves the parties of the duty to cohabit. The same jurisdictional rules generally apply. Under Section 10 of the Hindu Marriage Act, either party may petition for judicial separation on the same grounds as divorce.\n\nChoice of Law in Judicial Separation:\nSimilarly, lex fori governs judicial separation proceedings. The court applies its own law both to jurisdiction and to the substantive grounds for separation. A decree of judicial separation granted abroad may be recognized in India if the foreign court had jurisdiction according to Indian private international law rules.\n\nRECOGNITION OF FOREIGN DIVORCE DECREES:\nUnder Indian law (Section 13 CPC read with Section 41 of the Indian Evidence Act), a foreign divorce decree is recognized if:\n\n- The foreign court had jurisdiction according to Indian private international law.\n- The decree was not obtained by fraud.\n- It was not contrary to natural justice.\n- It does not violate Indian public policy.\n- The matter was directly adjudicated between the same parties.\n\nA divorce decree obtained without proper service on the respondent, or in a forum with no real connection to the parties, will not be recognized in India.\n\nConclusion:\nIn divorce and judicial separation, jurisdiction is primarily based on domicile or habitual residence, while the applicable law is invariably the lex fori. Recognition of foreign decrees is subject to the rules of private international law governing foreign judgments, with particular attention to jurisdiction, natural justice, and public policy."
+      "text": "The country where a person resides permanent with an intention to remain."
     }
   ]
 }

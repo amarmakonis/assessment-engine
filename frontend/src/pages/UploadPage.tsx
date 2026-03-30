@@ -109,7 +109,8 @@ export function UploadPage() {
         if (files.length === 1 && firstFile && (firstFile.name.toLowerCase().endsWith(".zip") || firstFile.type === "application/zip" || firstFile.type === "application/x-zip-compressed")) {
           await batchAPI.uploadScripts(firstFile, examId || "");
           toast.success("ZIP uploaded! Processing in background...");
-          navigate("/scripts");
+          setFiles([]);
+          navigate("/scripts", { state: { fromUpload: true } });
           return;
         } else {
           // Send all files to the general upload endpoint which now also uses Celery
@@ -118,14 +119,34 @@ export function UploadPage() {
           if (studentName) formData.append("studentName", studentName);
           if (studentRoll) formData.append("studentRoll", studentRoll);
           files.forEach((f) => formData.append("files", f));
-          await uploadAPI.upload(formData);
-          toast.success(`${files.length} script(s) uploaded! Check progress on the Scripts page.`);
-          navigate("/scripts");
-        }
+          const { data } = await uploadAPI.upload(formData);
+          const results = data.results ?? [];
+          const queued = results.filter((r) => r.status === "QUEUED");
+          const skipped = results.filter((r) => r.status === "SKIPPED_DUPLICATE");
 
-        toast.success("Upload successful! Processing has started in the background.");
-        navigate("/scripts");
-        setFiles([]);
+          if (skipped.length) {
+            const first = skipped[0];
+            const extra = skipped.length > 1 ? ` (${skipped.length} files)` : "";
+            toast.error(
+              (first?.reason ?? "Already uploaded for this exam.") + extra,
+              { duration: 6000 }
+            );
+          }
+
+          if (queued.length === 0) {
+            setFiles([]);
+            navigate("/scripts");
+            return;
+          }
+
+          toast.success(
+            skipped.length
+              ? `${queued.length} file(s) queued. ${skipped.length} skipped (duplicate).`
+              : `${queued.length} script(s) uploading! Open Scripts for progress.`
+          );
+          setFiles([]);
+          navigate("/scripts", { state: { fromUpload: true } });
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.message || err.response?.data?.error?.message || "Upload failed");
       } finally {
@@ -158,6 +179,9 @@ export function UploadPage() {
         ]);
         toast.success(`Typed answer submitted. Evaluating ${data.evaluatingCount} question(s)...`);
         setTypedAnswers({});
+        navigate("/scripts", {
+          state: { fromUpload: true, uploadedScriptIds: data.uploadedScriptId ? [data.uploadedScriptId] : [] },
+        });
       } catch (e: unknown) {
         const err = e as { response?: { data?: { error?: { message?: string } } } };
         toast.error(err.response?.data?.error?.message || "Submit failed");

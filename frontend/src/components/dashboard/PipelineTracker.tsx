@@ -38,10 +38,16 @@ interface PipelineTrackerProps {
 }
 
 export function PipelineTracker({ currentStatus, compact }: PipelineTrackerProps) {
-  const currentIdx = STAGE_ORDER[currentStatus] ?? -1;
+  const rawIdx = STAGE_ORDER[currentStatus] ?? -1;
   const isFailed = currentStatus === "FAILED";
   const isFlagged = currentStatus === "FLAGGED";
   const isTerminalError = isFailed || isFlagged;
+  /** Finished scripts should show the whole track completed, not an earlier stage still "active" if data was briefly stale. */
+  const isTerminalSuccess =
+    currentStatus === "EVALUATED" ||
+    currentStatus === "COMPLETE" ||
+    currentStatus === "IN_REVIEW";
+  const currentIdx = isTerminalSuccess ? STAGES.length : rawIdx;
 
   if (compact) {
     return (

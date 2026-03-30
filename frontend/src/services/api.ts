@@ -65,9 +65,21 @@ export const authAPI = {
   me: () => api.get<{ id: string; email: string; fullName: string; role: string }>("/auth/me"),
 };
 
+export type UploadScriptResult = {
+  filename: string;
+  status: string;
+  uploadedScriptId?: string;
+  reason?: string;
+};
+
 export const uploadAPI = {
   upload: (formData: FormData) =>
-    api.post<{ batchId: string; totalFiles: number; results: { filename: string; uploadedScriptId?: string; status: string; reason?: string }[] }>(
+    api.post<{
+      jobId: string | null;
+      status: string;
+      message: string;
+      results?: UploadScriptResult[];
+    }>(
       "/uploads/",
       formData,
       {
@@ -196,7 +208,7 @@ export const examAPI = {
       headers: { "Content-Type": "multipart/form-data" },
       timeout: 300000, // 5 min — extraction + rubric can take 2–3 min
     }),
-  list: (params?: { page?: number; perPage?: number }) =>
+  list: (params?: { page?: number; perPage?: number; ids?: string }) =>
     api.get<{
       items: {
         id: string;
